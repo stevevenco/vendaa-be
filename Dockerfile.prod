@@ -1,0 +1,30 @@
+# Use the official Python base image
+FROM python:3.12-slim
+
+# Set the working directory in the container
+WORKDIR /usr/src/app
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Install system dependencies (if required, like for PostgreSQL or other packages)
+RUN apt-get update
+
+# Install pipenv
+RUN pip install -U pipenv
+
+# Copy Pipfile and Pipfile.lock
+COPY Pipfile Pipfile.lock /usr/src/app/
+
+# Install dependencies using pipenv
+RUN pipenv install --deploy --ignore-pipfile
+
+# Copy the application files to the container
+COPY . /usr/src/app/
+
+# Expose the port for production
+EXPOSE 8000
+
+# Run Gunicorn with the Pipenv environment
+CMD ["pipenv", "run", "gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]

@@ -1,0 +1,39 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+djangorestframework = "*"
+django = "*"
+gunicorn = "*"
+djoser = "*"
+djangorestframework-simplejwt = "*"
+django-cors-headers = "*"
+requests = "*"
+pillow = "*"
+psycopg2-binary = "*"
+django-anymail = {extras = ["mailgun"], version = "*"}
+pydantic = "*"
+pydantic-settings = "*"
+dj-database-url = "*"
+django-extensions = "*"
+pyotp = "*"
+mailtrap = "*"
+django-ninja = "*"
+django-environ = "*"
+boto3 = "*"
+drf-yasg = "*"
+django-filter = "*"
+imagekitio = "*"
+cloudinary = "*"
+whitenoise = "*"
+
+[dev-packages]
+ruff = "*"
+pytest = "*"
+pytest-django = "*"
+django-extensions = "*"
+
+[requires]
+python_version = "3.12"
