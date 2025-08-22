@@ -5,7 +5,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from authentication.exceptions import InvalidOTP
 
-from .models import User
+from .models import Organization, OrganizationMember, User
 from .schema import UserInput
 from .utils import verify_otp
 
@@ -23,7 +23,17 @@ class UserModelSerializer(serializers.ModelSerializer):
         extra_kwargs = {"password": {"write_only": True, "min_length": 8}}
 
     def create(self, validated_data: UserInput):
+        organization_name = validated_data.pop("organization", None)
         user = User.objects.create_user(**validated_data)
+        if organization_name:
+            organization = Organization.objects.create(
+                name=organization_name, created_by=user
+            )
+            user.organization = organization
+            user.save()
+            OrganizationMember.objects.create(
+                user=user, organization=organization, role="admin"
+            )
         return user
 
     def to_representation(self, instance):

@@ -42,7 +42,13 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
         max_length=50, blank=True, null=True, default=None
     )
     email = models.EmailField(unique=True)
-    organization = models.CharField(max_length=100, blank=True, null=True)
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="users",
+    )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
