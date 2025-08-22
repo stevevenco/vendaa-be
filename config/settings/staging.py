@@ -36,14 +36,20 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = [
+    "https://vendaa.onrender.com",
+    "http://localhost:5173/login"
 ]
+
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https:\/\/(\w+\.)*satisfactory-sheela-sten-2711061c\.koyeb\.app$",
+    r"^https:\/\/(\w+\.)*vendaa\.onrender\.com$",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 
 ALLOWED_HOSTS = [
+    "vendaa-be.onrender.com",
+    "http://localhost:8000",
+    "localhost:8000"
 ]
 
 
