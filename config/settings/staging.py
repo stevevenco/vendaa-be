@@ -37,7 +37,7 @@ REST_FRAMEWORK = {
 
 CORS_ALLOWED_ORIGINS = [
     "https://vendaa.onrender.com",
-    "http://localhost:5173/login"
+    "http://localhost:5173"
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -60,6 +60,7 @@ DATABASES = {
         "USER": os.getenv("DATABASE_USER"),
         "PASSWORD": os.getenv("DATABASE_PASSWORD"),
         "HOST": os.getenv("DATABASE_HOST"),
+        "PORT": os.getenv("DATABASE_PORT", "5432"),  # Default PostgreSQL port
         "OPTIONS": {"sslmode": "require"},
     }
 }
