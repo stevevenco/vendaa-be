@@ -15,6 +15,7 @@ from .utils import verify_otp
 class UserModelSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(required=True, allow_blank=True)
     last_name = serializers.CharField(required=True, allow_blank=True)
+    organization = serializers.CharField(required=True, allow_blank=True)
 
     class Meta:
         model = User
