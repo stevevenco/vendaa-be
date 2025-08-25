@@ -5,23 +5,34 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from authentication.exceptions import InvalidOTP
 
-from .models import User
-from .schema import UserInput
+from .models import Membership, Organization, User
 from .utils import verify_otp
 
 # from utils.serializers import BaseSerializer
 
 
 class UserModelSerializer(serializers.ModelSerializer):
-    first_name = serializers.CharField(required=True, allow_blank=True)
-    last_name = serializers.CharField(required=True, allow_blank=True)
+    first_name = serializers.CharField(required=True, allow_blank=False)
+    last_name = serializers.CharField(required=True, allow_blank=False)
+    organizations = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["email", "password", "first_name", "last_name", "ref_source"]
+        fields = ["email", "password", "first_name", "last_name", "organizations"]
         extra_kwargs = {"password": {"write_only": True, "min_length": 8}}
+    
+    def get_organizations(self, obj):
+        memberships = obj.memberships.all()
+        return [
+            {
+                "uuid": membership.organization.uuid,
+                "name": membership.organization.name,
+                "role": membership.role,
+            }
+            for membership in memberships
+        ]
 
-    def create(self, validated_data: UserInput):
+    def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
         return user
 
@@ -30,6 +41,51 @@ class UserModelSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         ret.pop("password", None)
         return ret
+
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ["uuid", "name", "created_by", "created"]
+        read_only_fields = ["uuid", "created_by", "created"]
+
+    @transaction.atomic
+    def create(self, validated_data):
+        user = self.context["request"].user
+        organization = Organization.objects.create(
+            created_by=user, **validated_data
+        )
+        Membership.objects.create(
+            user=user, organization=organization, role="owner"
+        )
+        return organization
+
+
+class MemberSerializer(serializers.ModelSerializer):
+    user = UserModelSerializer(read_only=True)
+    user_id = serializers.UUIDField(write_only=True)
+
+    class Meta:
+        model = Membership
+        fields = ["uuid", "user", "user_id", "role", "joined_at"]
+        read_only_fields = ["uuid", "joined_at"]
+
+    def create(self, validated_data):
+        organization = self.context["organization"]
+        user_id = validated_data.pop("user_id")
+        try:
+            user = User.objects.get(uuid=user_id)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User not found")
+
+        # Check if membership already exists
+        if Membership.objects.filter(user=user, organization=organization).exists():
+            raise serializers.ValidationError("User is already a member of this organization")
+
+        membership = Membership.objects.create(
+            user=user, organization=organization, **validated_data
+        )
+        return membership
 
 
 class DashboardSerializer(serializers.Serializer):

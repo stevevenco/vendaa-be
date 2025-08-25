@@ -1,22 +1,27 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.generics import (
     CreateAPIView,
     GenericAPIView,
+    ListCreateAPIView,
+    RetrieveUpdateDestroyAPIView,
 )
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-
-from .models import User
+from .models import Membership, Organization, User
 from .serializers import (
     CustomTokenObtainPairSerializer,
     DashboardSerializer,
+    MemberSerializer,
     OldVerifyOTPSerializer,
+    OrganizationSerializer,
     OTPVerifySerializer,
     UserModelSerializer,
 )
 from .utils import create_otp, send_otp
+from utils.permissions import IsOrganizationOwnerOrAdmin
 
 
 class UserCreateView(CreateAPIView):
@@ -25,20 +30,58 @@ class UserCreateView(CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserModelSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        validated_data = serializer.validated_data
-        user = User.objects.create_user(**validated_data)
+        user = serializer.save()
         email_otp = create_otp(user, purpose="signup")
-        # user.save()
-        user_email = user.email
-        send_otp(user_email, email_otp)
+        send_otp(user.email, email_otp)
         headers = self.get_success_headers(serializer.data)
         return Response(
             serializer.data, status=status.HTTP_201_CREATED, headers=headers
         )
+
+
+class OrganizationListCreateView(ListCreateAPIView):
+    serializer_class = OrganizationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Organization.objects.filter(memberships__user=self.request.user)
+
+    def get_serializer_context(self):
+        return {"request": self.request}
+
+
+class MemberListCreateView(ListCreateAPIView):
+    serializer_class = MemberSerializer
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
+
+    def get_queryset(self):
+        organization = get_object_or_404(
+            Organization, uuid=self.kwargs["org_uuid"]
+        )
+        return Membership.objects.filter(organization=organization)
+
+    def get_serializer_context(self):
+        organization = get_object_or_404(
+            Organization, uuid=self.kwargs["org_uuid"]
+        )
+        return {"organization": organization}
+
+
+class MemberDetailView(RetrieveUpdateDestroyAPIView):
+    serializer_class = MemberSerializer
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
+    lookup_field = "uuid"
+
+    def get_queryset(self):
+        organization = get_object_or_404(
+            Organization, uuid=self.kwargs["org_uuid"]
+        )
+        return Membership.objects.filter(organization=organization)
 
 
 class UserDetailView(GenericAPIView):

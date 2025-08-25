@@ -40,7 +40,7 @@ def verify_otp(user, code: str, purpose: str, **kwargs) -> bool:
             purpose=purpose,
             used=False,
             expires_at__gt=timezone.now(),
-        ).latest("created_at")
+        ).latest("created")
 
         if otp_obj.code_hash == hashed_code:
             otp_obj.mark_used()
