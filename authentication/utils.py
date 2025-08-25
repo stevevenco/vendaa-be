@@ -60,7 +60,7 @@ def verify_otp(user, code: str, purpose: str, **kwargs) -> bool:
 
 
 def send_otp(receiver, otp):
-    subject = "OTP for Vendaa email verification"
+    subject = "Complete your registration"
     html_message = render_to_string("mail_template.html", {"otp": otp})
     plain_message = strip_tags(html_message)
     from_email = settings.EMAIL_HOST_USER

@@ -5,7 +5,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from authentication.exceptions import InvalidOTP
 
-from .models import Membership, Organization, User
+from .models import Membership, Organization, User, OTP
 from .utils import verify_otp
 
 # from utils.serializers import BaseSerializer
@@ -18,9 +18,16 @@ class UserModelSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["email", "password", "first_name", "last_name", "organizations"]
+        fields = [
+            "email",
+            "password",
+            "first_name",
+            "last_name",
+            "phone_number",
+            "organizations",
+        ]
         extra_kwargs = {"password": {"write_only": True, "min_length": 8}}
-    
+
     def get_organizations(self, obj):
         memberships = obj.memberships.all()
         return [
@@ -102,53 +109,35 @@ class DashboardSerializer(serializers.Serializer):
         return attrs
 
 
-class OldVerifyOTPSerializer(serializers.Serializer):
-    email_otp = serializers.CharField(
-        max_length=6, min_length=6, required=True
-    )
-
-    class Meta:
-        model = User
-        fields = ["email_otp"]
-
-    def validate_email_otp(self, value):
-        user = self.context["request"].user
-        e_otp = user.email_otp
-        print("email_otp: ", value)
-        print("e_otp: ", e_otp)
-
-        if not verify_otp(value, e_otp):
-            raise InvalidOTP
-
-        return e_otp
-
-    @transaction.atomic
-    def save(self):
-        user = self.context["request"].user
-        user.is_verified = True
-        user.email_otp = None
-        user.save()
-        # self.validated_data["otp"].delete()
-        return
+class RequestOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    purpose = serializers.ChoiceField(choices=["signup", "password_reset"])
 
 
 class OTPVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
     otp_code = serializers.CharField(min_length=6, max_length=6)
-    purpose = serializers.ChoiceField(choices=["signup", "password_reset"])
+    purpose = serializers.ChoiceField(choices=OTP.PURPOSE_CHOICES)
 
     @transaction.atomic
     def validate(self, attrs):
-        user = self.context["request"].user
+        email = attrs.get("email")
         code = attrs.get("otp_code")
         purpose = attrs.get("purpose")
 
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User not found")
+
         from authentication.utils import verify_otp
 
-        new_password = self.context["request"].data.get("new_password")
+        new_password = self.context.get("new_password")
 
         if not verify_otp(user, code, purpose, new_password=new_password):
             raise serializers.ValidationError("Invalid OTP")
 
+        attrs["user"] = user
         return attrs
 
 
@@ -178,3 +167,20 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise exceptions.AuthenticationFailed(
                 "No active account found with the given credentials"
             )
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, min_length=8)
+
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Old password is not correct")
+        return value
+
+    def save(self, **kwargs):
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
+        user.save()
+        return user

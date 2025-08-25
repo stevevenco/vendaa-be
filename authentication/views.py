@@ -13,11 +13,12 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import Membership, Organization, User
 from .serializers import (
     CustomTokenObtainPairSerializer,
+    ChangePasswordSerializer,
     DashboardSerializer,
     MemberSerializer,
-    OldVerifyOTPSerializer,
     OrganizationSerializer,
     OTPVerifySerializer,
+    RequestOTPSerializer,
     UserModelSerializer,
 )
 from .utils import create_otp, send_otp
@@ -108,33 +109,12 @@ class UserUpdateView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
-class OldVerifyOTPView(GenericAPIView):
-    """Generic View for verifying OTP and updating
-    user verification status
-    """
-
-    serializer_class = OldVerifyOTPSerializer
-    permission_classes = [
-        IsAuthenticated,
-    ]
-
-    def patch(self, request, *args, **kwargs):
-        serializer = self.serializer_class(
-            instance=request.user,
-            data=request.data,
-            context={"request": request},
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
 class VerifyOTPView(GenericAPIView):
     serializer_class = OTPVerifySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
+        context = {}
         if request.data.get("purpose") == "password_reset":
             new_password = request.data.get("new_password")
             if not new_password:
@@ -142,10 +122,9 @@ class VerifyOTPView(GenericAPIView):
                     {"detail": "New password is required."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            request.data["new_password"] = new_password
-        serializer = self.get_serializer(
-            data=request.data, context={"request": request}
-        )
+            context["new_password"] = new_password
+
+        serializer = self.get_serializer(data=request.data, context=context)
         serializer.is_valid(raise_exception=True)
 
         return Response(
@@ -154,46 +133,19 @@ class VerifyOTPView(GenericAPIView):
 
 
 class RequestOTPView(GenericAPIView):
-    """Generic View for requesting OTP for email verification"""
-
-    serializer_class = OTPVerifySerializer
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        user = request.user
-        purpose = request.data.get("purpose", "signup")
-
-        if purpose in ["password_reset"]:
-            return Response(
-                {"detail": "You cannot perform this action."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        otp_code = create_otp(user, purpose=purpose)
-        send_otp(user.email, otp_code)
-
-        return Response(
-            {"detail": "OTP sent to your email."}, status=status.HTTP_200_OK
-        )
-
-
-class ForgotPasswordView(GenericAPIView):
-    """Generic View for handling forgot password requests"""
-
-    serializer_class = OTPVerifySerializer
+    serializer_class = RequestOTPSerializer
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        email = request.data.get("email")
-        if not email:
-            return Response(
-                {"detail": "Email is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        purpose = serializer.validated_data["purpose"]
 
         try:
             user = User.objects.get(email=email)
-            otp_code = create_otp(user, purpose="password_reset")
+            otp_code = create_otp(user, purpose=purpose)
             send_otp(user.email, otp_code)
             return Response(
                 {"detail": "OTP sent to your email."},
@@ -208,3 +160,22 @@ class ForgotPasswordView(GenericAPIView):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+class ChangePasswordView(GenericAPIView):
+    """Generic View for changing user password"""
+
+    serializer_class = ChangePasswordSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"detail": "password updated successfully"},
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request, *args, **kwargs):
+        return self.post(request, *args, **kwargs)
