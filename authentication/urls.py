@@ -5,8 +5,8 @@ from rest_framework_simplejwt.views import (
 )
 
 from .views import (
+    ChangePasswordView,
     CustomTokenObtainPairView,
-    ForgotPasswordView,
     MemberDetailView,
     MemberListCreateView,
     OrganizationListCreateView,
@@ -22,14 +22,14 @@ urlpatterns = [
     path(
         "login/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"
     ),
-    path(
-        "forgot-password/",
-        ForgotPasswordView.as_view(),
-        name="forgot_password",
-    ),
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("otp-verify/", VerifyOTPView.as_view(), name="otp_verification"),
     path("request-otp/", RequestOTPView.as_view(), name="request_otp"),
+    path(
+        "change-password/",
+        ChangePasswordView.as_view(),
+        name="change_password",
+    ),
     # -----
     path("me/", UserDetailView.as_view(), name="user_detail"),
     path("me/update/", UserUpdateView.as_view(), name="user_update"),

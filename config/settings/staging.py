@@ -37,7 +37,8 @@ REST_FRAMEWORK = {
 
 CORS_ALLOWED_ORIGINS = [
     "https://vendaa.onrender.com",
-    "http://localhost:5173"
+    "http://localhost:5173",
+    "http://localhost:8080"
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
