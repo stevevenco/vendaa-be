@@ -42,13 +42,6 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
         max_length=50, blank=True, null=True, default=None
     )
     email = models.EmailField(unique=True)
-    organization = models.ForeignKey(
-        "Organization",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="users",
-    )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
@@ -64,26 +57,38 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
 
 
 class Organization(TrackObjectStateMixin):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=255)
     created_by = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="organizations"
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="owned_organizations",
     )
-
     def __str__(self):
         return self.name
 
 
-class OrganizationMember(TrackObjectStateMixin):
-    user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="organization_members"
-    )
-    organization = models.ForeignKey(
-        Organization, on_delete=models.CASCADE, related_name="members"
-    )
-    role = models.CharField(max_length=50, choices=[
+class Membership(TrackObjectStateMixin):
+    ROLE_CHOICES = [
+        ("owner", "Owner"),
         ("admin", "Admin"),
         ("member", "Member"),
-    ])
+    ]
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="memberships"
+    )
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="memberships"
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
+
+    @property
+    def joined_at(self):
+        return self.created
+
+    class Meta:
+        unique_together = ("user", "organization")
 
     def __str__(self):
         return f"{self.user.email} - {self.organization.name} ({self.role})"
@@ -101,7 +106,6 @@ class OTP(TrackObjectStateMixin):
     )
     purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES)
     code_hash = models.CharField(max_length=128)
-    created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     used = models.BooleanField(default=False)
 
