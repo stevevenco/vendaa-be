@@ -1,11 +1,12 @@
 from django.contrib.auth import authenticate
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import exceptions, serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from authentication.exceptions import InvalidOTP
 
-from .models import Membership, Organization, User, OTP
+from .models import Invitation, Membership, Organization, User, OTP
 from .utils import verify_otp
 
 # from utils.serializers import BaseSerializer
@@ -63,9 +64,129 @@ class OrganizationSerializer(serializers.ModelSerializer):
             created_by=user, **validated_data
         )
         Membership.objects.create(
-            user=user, organization=organization, role="owner"
+            user=user,
+            organization=organization,
+            role="owner",
+            invited_by=user  # Self-invited when creating organization
         )
         return organization
+
+
+class OrganizationUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ["name"]
+
+
+class InvitationCreateSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField()
+    role = serializers.ChoiceField(choices=Membership.ROLE_CHOICES, default="member")
+
+    class Meta:
+        model = Invitation
+        fields = ["email", "role"]
+
+    def validate_email(self, value):
+        organization = self.context.get("organization")
+        if organization and Membership.objects.filter(
+            organization=organization, user__email=value
+        ).exists():
+            raise serializers.ValidationError(
+                "A user with this email is already a member of this organization."
+            )
+
+        # if (
+        #     organization
+        #     and Invitation.objects.filter(
+        #         organization=organization, email=value, status="pending"
+        #     ).exists()
+        # ):
+        #     raise serializers.ValidationError(
+        #         "An invitation has already been sent to this email address for this organization."
+        #     )
+
+        return value
+
+
+class InvitationDetailSerializer(serializers.ModelSerializer):
+    organization_name = serializers.CharField(
+        source="organization.name", read_only=True
+    )
+    organization_uuid = serializers.UUIDField(
+        source="organization.uuid", read_only=True
+    )
+    role = serializers.CharField(source="get_role_display", read_only=True)
+    sent_by_email = serializers.EmailField(source="sent_by.email", read_only=True)
+    sent_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Invitation
+        fields = [
+            "token",
+            "email",
+            "role",
+            "organization_name",
+            "organization_uuid",
+            "sent_by_email",
+            "sent_by_name",
+            "status",
+            "created",
+            "expires_at"
+        ]
+
+    def get_sent_by_name(self, obj):
+        if obj.sent_by:
+            return f"{obj.sent_by.first_name} {obj.sent_by.last_name}"
+        return None
+
+
+class AcceptInviteSerializer(serializers.Serializer):
+    token = serializers.UUIDField()
+
+    def validate(self, attrs):
+        token = attrs.get("token")
+        try:
+            invitation = Invitation.objects.get(token=token, status="pending")
+        except Invitation.DoesNotExist:
+            raise serializers.ValidationError("Invalid or expired invitation token.")
+
+        if invitation.expires_at < timezone.now():
+            invitation.status = "expired"
+            invitation.save()
+            raise serializers.ValidationError("Invitation has expired.")
+
+        user = self.context["request"].user
+        if invitation.email != user.email:
+            raise serializers.ValidationError("This invitation is not for you.")
+
+        attrs["invitation"] = invitation
+        return attrs
+
+
+class UserBasicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["email", "first_name", "last_name", "phone_number"]
+
+
+class MemberListSerializer(serializers.ModelSerializer):
+    user = UserBasicSerializer(read_only=True)
+
+    class Meta:
+        model = Membership
+        fields = ["uuid", "user", "role", "joined_at", "invited_by"]
+        read_only_fields = ["uuid", "joined_at"]
+
+
+class MemberRoleUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Membership
+        fields = ["role"]
+
+    def validate_role(self, value):
+        if value not in dict(Membership.ROLE_CHOICES):
+            raise serializers.ValidationError("Invalid role choice.")
+        return value
 
 
 class MemberSerializer(serializers.ModelSerializer):
@@ -111,7 +232,12 @@ class DashboardSerializer(serializers.Serializer):
 
 class RequestOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    purpose = serializers.ChoiceField(choices=["signup", "password_reset"])
+    purpose = serializers.ChoiceField(choices=OTP.PURPOSE_CHOICES)
+
+    def validate_purpose(self, value):
+        if value not in dict(OTP.PURPOSE_CHOICES):
+            raise serializers.ValidationError("Invalid purpose choice.")
+        return value
 
 
 class OTPVerifySerializer(serializers.Serializer):

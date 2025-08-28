@@ -13,6 +13,8 @@ DEBUG = True  # change to False in production
 SECURE_SSL_REDIRECT = False  # change to True in production
 # -----------
 
+FRONTEND_URL = "https://vendaa.onrender.com"
+
 CORS_ALLOW_ALL_ORIGINS = False
 
 CSRF_COOKIE_SECURE = True

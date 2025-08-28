@@ -8,6 +8,8 @@ print(f"\n======Loading {GENERAL_SETTINGS.ENVIRONMENT} settings...=======\n")  #
 
 load_dotenv()
 
+FRONTEND_URL = "https://vendaa.onrender.com"
+
 DEBUG = False
 
 CORS_ALLOW_ALL_ORIGINS = False

@@ -27,9 +27,14 @@ class GeneralSettings(BaseSettings):
     DEBUG: bool = False
     SECRET_KEY: str
     ENVIRONMENT: EnvironmentType
+    METER_SERVICES_URL: str
+    METER_SERVICES_TOKEN: str
 
 
 GENERAL_SETTINGS = GeneralSettings()
+METER_SERVICES_URL = GENERAL_SETTINGS.METER_SERVICES_URL
+METER_SERVICES_TOKEN = GENERAL_SETTINGS.METER_SERVICES_TOKEN
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -76,6 +81,7 @@ THIRD_PARTY_APPS = [
 CUSTOM_APPS = [
     "authentication",
     "media",
+    "wallet",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + CUSTOM_APPS
