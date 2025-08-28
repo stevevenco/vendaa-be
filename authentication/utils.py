@@ -59,12 +59,42 @@ def verify_otp(user, code: str, purpose: str, **kwargs) -> bool:
         return False
 
 
-def send_otp(receiver, otp):
-    subject = "Complete your registration"
-    html_message = render_to_string("mail_template.html", {"otp": otp})
+def send_otp(receiver, otp, purpose=OTP.PURPOSE_CHOICES[0][0], **kwargs):
+    context = {
+        "otp": otp,
+        "user_first_name": kwargs.get("user_first_name", "")
+    }
+
+    if purpose == OTP.PURPOSE_CHOICES[1][0]:  # password_reset
+        subject = "Password Reset Request"
+        template_name = "forgot_password_template.html"
+    elif purpose == OTP.PURPOSE_CHOICES[0][0]:  # signup
+        subject = "Complete your registration"
+        template_name = "signup_template.html"
+
+    html_message = render_to_string(template_name, context)
     plain_message = strip_tags(html_message)
     from_email = settings.EMAIL_HOST_USER
     to = receiver
     send_mail(
         subject, plain_message, from_email, [to], html_message=html_message
     )
+
+
+def send_invitation_email(invitation):
+    subject = f"Invitation to join {invitation.organization.name}"
+    context = {
+        "organization_name": invitation.organization.name,
+        "role": invitation.get_role_display(),
+        "invite_link": f"{settings.FRONTEND_URL}/accept-invite/{invitation.token}/",
+        "sender_name": f"{invitation.sent_by.first_name} {invitation.sent_by.last_name}" if invitation.sent_by else "Administrator",
+        "sender_email": invitation.sent_by.email if invitation.sent_by else "no-reply@vedaa.co",
+    }
+    html_message = render_to_string("invitation_email.html", context)
+    plain_message = strip_tags(html_message)
+    from_email = settings.EMAIL_HOST_USER
+    to = invitation.email
+    send_mail(
+        subject, plain_message, from_email, [to], html_message=html_message
+    )
+

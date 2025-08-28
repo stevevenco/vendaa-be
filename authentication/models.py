@@ -1,3 +1,5 @@
+import uuid
+from datetime import timedelta
 from django.contrib.auth.models import (
     AbstractBaseUser,
     BaseUserManager,
@@ -85,6 +87,12 @@ class Membership(TrackObjectStateMixin):
         Organization, on_delete=models.CASCADE, related_name="memberships"
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="invited_memberships"
+    )
 
     @property
     def joined_at(self):
@@ -118,3 +126,42 @@ class OTP(TrackObjectStateMixin):
     def mark_used(self):
         self.used = True
         self.save()
+
+
+class Invitation(TrackObjectStateMixin):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("accepted", "Accepted"),
+        ("expired", "Expired"),
+        ("declined", "Declined"),
+        ("cancelled", "Cancelled"),
+    ]
+
+    ROLE_CHOICES = Membership.ROLE_CHOICES
+
+    email = models.EmailField()
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="invitations"
+    )
+    sent_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True,
+        related_name="sent_invitations"
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pending"
+    )
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(days=7)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Invitation for {self.email} to {self.organization.name}"
+
+

@@ -9,7 +9,10 @@ class IsOrganizationOwnerOrAdmin(permissions.BasePermission):
     """
 
     def has_permission(self, request, view):
-        organization_uuid = view.kwargs.get("org_uuid")
+        if view.kwargs.get("org_uuid"):
+            organization_uuid = view.kwargs.get("org_uuid")
+        elif view.kwargs.get("uuid"):
+            organization_uuid = view.kwargs.get("uuid")
         try:
             membership = Membership.objects.get(
                 user=request.user, organization__uuid=organization_uuid
