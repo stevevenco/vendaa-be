@@ -4,45 +4,100 @@ from .models import Wallet
 
 def create_wallet_for_organization(org):
     """
-    Creates a wallet for an organization using the meter services API
+    Creates a wallet for an organization using the meter services API.
+    If the wallet already exists on Meter Services but not in our DB,
+    fetches it and saves it locally.
     
     Args:
         org: Organization instance
         
     Returns:
         Wallet instance if successful
-        
-    Raises:
-        Exception if wallet creation fails
     """
-    url = f'{settings.METER_SERVICES_URL}/api/method/meter_services.v1.wallet.create_wallet'
+    url = f"{settings.METER_SERVICES_URL}/api/method/meter_services.v1.wallet.create_wallet"
     headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'token {settings.METER_SERVICES_TOKEN}'
+        "Content-Type": "application/json",
+        "Authorization": f"token {settings.METER_SERVICES_TOKEN}",
     }
     data = {
-        'party_name': org.name,
-        'reference': str(org.uuid),
-        'currency': 'NGN',
-        'wallet_type': 'Meter Wallet',
-        'is_live': 0
+        "party_name": org.name,
+        "reference": str(org.uuid),
+        "currency": "NGN",
+        "wallet_type": "Meter Wallet",
+        "is_live": 0,
     }
 
     response = requests.post(url, json=data, headers=headers)
     response_data = response.json()
 
-    if response.status_code == 200 and response_data.get('status') == 'success':
-        wallet_data = response_data['data']
+    # ✅ Case 1: Success — create wallet in DB
+    if response.status_code == 200 and response_data.get("status") == "success":
+        wallet_data = response_data["data"]
         wallet = Wallet.objects.create(
-            wallet_id=wallet_data['wallet_id'],
-            created_by=wallet_data['owner'],
+            wallet_id=wallet_data["wallet_id"],
+            created_by=wallet_data["owner"],
             reference=org,
-            currency=wallet_data['currency'],
-            available_balance=wallet_data['available_balance']
+            currency=wallet_data["currency"],
+            available_balance=wallet_data["available_balance"],
         )
         return wallet
 
-    raise Exception('Failed to create wallet: ' + str(response_data))
+    # ✅ Case 2: Duplicate wallet error (wallet exists in meter services but not in DB)
+    if response.status_code == 400:
+        error_message = str(response_data)
+        if "Duplicate entry" in error_message or "IntegrityError" in error_message:
+            return get_wallet_for_organization(org)
+
+    # ❌ Case 3: General failure
+    raise Exception("Failed to create wallet: " + str(response_data))
+
+
+def get_wallet_for_organization(org):
+    """
+    Retrieves an organization's wallet from Meter Services and stores it in our DB.
+    
+    Args:
+        org: Organization instance
+        
+    Returns:
+        Wallet instance if successful
+    """
+    url = (
+        f"{settings.METER_SERVICES_URL}/api/method/meter_services.v1.wallet.get_wallets"
+    )
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"token {settings.METER_SERVICES_TOKEN}",
+    }
+    params = {
+        'wallet_type': "Meter Wallet",
+        'currency': "NGN",
+        'reference': org.uuid,
+        'is_live': 0
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+    response_data = response.json()
+
+    if response.status_code == 200 and response_data.get("status") == "success":
+        wallets = response_data.get("data", [])
+        if not wallets:
+            raise Exception(f"No wallet found for organization {org.uuid}")
+
+        wallet_data = wallets[0]  # expect one wallet per org reference
+
+        # Save in DB
+        wallet = Wallet.objects.create(
+            wallet_id=wallet_data["wallet_id"],
+            created_by=wallet_data["owner"],
+            reference=org,
+            currency=wallet_data["currency"],
+            available_balance=wallet_data["available_balance"],
+        )
+        return wallet
+
+    raise Exception("Failed to retrieve wallet: " + str(response_data))
+
 
 def get_wallet_balance(wallet_id):
     """
