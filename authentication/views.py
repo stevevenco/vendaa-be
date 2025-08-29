@@ -93,6 +93,7 @@ class OrganizationInviteView(CreateAPIView):
 
 class VerifyInviteView(GenericAPIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get(self, request, *args, **kwargs):
         token = request.query_params.get("token")
