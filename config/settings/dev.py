@@ -16,8 +16,11 @@ CORS_ALLOW_ALL_ORIGINS = True
 SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"] = timedelta(days=30)  # noqa 405
 FRONTEND_URL = "http://localhost:8080"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "28d0-102-89-23-100.ngrok-free.app"]
-CSRF_TRUSTED_ORIGINS = ["https://*.28d0-102-89-23-100.ngrok-free.app"]
+ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1"]
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
 
 PAYSTACK_SECRET_KEY = env("PAYSTACK_TEST_SECRET_KEY")
 

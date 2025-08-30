@@ -18,6 +18,7 @@ from .models import Membership, Organization, User, Invitation
 from .serializers import (
     CustomTokenObtainPairSerializer,
     ChangePasswordSerializer,
+    ResetForgotPasswordSerializer,
     DashboardSerializer,
     MemberSerializer,
     MemberListSerializer,
@@ -450,6 +451,26 @@ class ChangePasswordView(GenericAPIView):
         serializer.save()
         return Response(
             {"detail": "password updated successfully"},
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request, *args, **kwargs):
+        return self.post(request, *args, **kwargs)
+
+
+class ResetForgotPasswordView(GenericAPIView):
+    """Generic View for handling forgot password requests"""
+
+    serializer_class = ResetForgotPasswordSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+        serializer.save(email=email)
+        return Response(
+            {"detail": "Password updated successfully!"},
             status=status.HTTP_200_OK,
         )
 

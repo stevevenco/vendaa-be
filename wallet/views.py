@@ -1,4 +1,5 @@
 from decimal import Decimal
+import json
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -7,10 +8,10 @@ from django.shortcuts import get_object_or_404
 
 from .serializers import (
     WalletCreateSerializer, WalletSerializer, WalletBalanceSerializer,
-    PaymentOptionSerializer
+    PaymentOptionSerializer, TransactionSerializer
 )
 from .models import Wallet
-from .utils import get_wallet_balance, initiate_wallet_payment
+from .utils import get_wallet_balance, initiate_wallet_payment, get_wallet_transaction_history
 
 class CreateWalletView(APIView):
     permission_classes = [IsAuthenticated]
@@ -48,7 +49,7 @@ class WalletBalanceView(APIView):
                 wallet.available_balance = balance_decimal
                 wallet.save()
 
-            serializer = WalletBalanceSerializer({'balance': available_balance})
+            serializer = WalletBalanceSerializer({'balance': available_balance, 'wallet_id': wallet.wallet_id, 'currency': wallet.currency})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -96,6 +97,42 @@ class InitiatePaymentView(APIView):
 
             # Serialize the options
             serializer = PaymentOptionSerializer(options, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class TransactionListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, organization_id):
+        # Get the wallet for this organization
+        wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
+        print(f"\n\nwallet: {wallet}\n\n")
+
+        try:
+            # Get transaction history from meter services
+            currency = "₦"
+            transactions = get_wallet_transaction_history(wallet.wallet_id)
+            # print(f"\n\ntransactions: {transactions}\n\n")
+
+            serializer_data = []
+            for txn in transactions:
+                txn_body = {}
+                txn_body['title'] = txn['title']
+                txn_body['transaction_id'] = txn['transaction_id']
+                txn_body['amount'] = currency + f"{float(txn['amount']):.2f}"
+                txn_body['created_at'] = txn['creation_date']
+                txn_body['status'] = txn['status']
+                serializer_data.append(txn_body)
+                # print(f"\n\ntxn_body: {txn_body}\n\n")
+
+            # Serialize the transactions
+            serializer = TransactionSerializer(serializer_data, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
