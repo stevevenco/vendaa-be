@@ -25,6 +25,9 @@ class WalletSerializer(serializers.ModelSerializer):
 
 class WalletBalanceSerializer(serializers.Serializer):
     balance = serializers.CharField()
+    wallet_id = serializers.CharField()
+    currency = serializers.CharField()
+
 
 class PaymentOptionSerializer(serializers.Serializer):
     payment_gateway = serializers.CharField()
@@ -40,3 +43,11 @@ class PaymentOptionSerializer(serializers.Serializer):
     account_name = serializers.CharField(required=False)
     account_reference = serializers.CharField(required=False)
 
+
+class TransactionSerializer(serializers.Serializer):
+    transaction_id = serializers.CharField()
+    title = serializers.CharField()
+    amount = serializers.CharField()
+    # fee = serializers.DecimalField(max_digits=20, decimal_places=2)
+    status = serializers.CharField()
+    created_at = serializers.DateTimeField()

@@ -1,5 +1,7 @@
 import requests
 from django.conf import settings
+
+from wallet.serializers import TransactionSerializer
 from .models import Wallet
 
 def create_wallet_for_organization(org):
@@ -7,10 +9,10 @@ def create_wallet_for_organization(org):
     Creates a wallet for an organization using the meter services API.
     If the wallet already exists on Meter Services but not in our DB,
     fetches it and saves it locally.
-    
+
     Args:
         org: Organization instance
-        
+
     Returns:
         Wallet instance if successful
     """
@@ -164,3 +166,40 @@ def initiate_wallet_payment(wallet_id, amount):
         return response_data['data']['payment_options']
     
     raise Exception('Failed to initiate payment: ' + str(response_data))
+
+
+def get_wallet_transaction_history(wallet_id):
+    """
+    Retrieves the transaction history for a wallet from Meter Services.
+    
+    Args:
+        wallet_id: The wallet ID to fetch transactions for.
+        
+    Returns:
+        List of transaction dicts.
+        
+    Raises:
+        Exception if fetching transactions fails.
+    """
+    url = f'{settings.METER_SERVICES_URL}/api/method/meter_services.v1.wallet.get_transactions'
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'token {settings.METER_SERVICES_TOKEN}'
+    }
+    params = {
+        'party': wallet_id,
+        'party_type': 'wallet',
+        'currency': 'NGN',
+        'is_live': 0
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+    response_data = response.json()
+
+    if response.status_code == 200 and response_data.get('status') == 'success':
+        res_data = response_data['data']
+        # print(f"\n\nres_data: {res_data}\n\n")
+        # return [TransactionSerializer(txn).data for txn in res_data]
+        return res_data
+
+    raise Exception('Failed to fetch transactions: ' + str(response_data))

@@ -7,7 +7,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from authentication.exceptions import InvalidOTP
 
 from .models import Invitation, Membership, Organization, User, OTP
-from .utils import verify_otp
+from .utils import verify_otp, hash_otp
 
 # from utils.serializers import BaseSerializer
 
@@ -309,4 +309,30 @@ class ChangePasswordSerializer(serializers.Serializer):
         user = self.context["request"].user
         user.set_password(self.validated_data["new_password"])
         user.save()
+        return user
+
+
+class ResetForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp_code = serializers.CharField(min_length=6, max_length=6)
+    new_password = serializers.CharField(min_length=8)
+
+    def validate(self, attrs):
+        """Validate the email and OTP code."""
+        user = User.objects.filter(email=attrs.get("email")).first()
+        if not user:
+            raise serializers.ValidationError("User with this email does not exist.")
+
+        hashed_code = hash_otp(attrs.get("otp_code"))
+        is_user_otp = OTP.objects.filter(user=user, code_hash=hashed_code).first()
+        if not is_user_otp:
+            raise serializers.ValidationError("Invalid OTP code.")
+
+        return attrs
+
+    def save(self, **kwargs):
+        user = User.objects.filter(email=self.validated_data["email"]).first()
+        if user:
+            user.set_password(self.validated_data["new_password"])
+            user.save()
         return user
