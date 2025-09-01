@@ -1,7 +1,8 @@
 import uuid
+import uuid
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.generics import (
     ListAPIView,
     CreateAPIView,
@@ -81,9 +82,10 @@ class OrganizationInviteView(CreateAPIView):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context["organization"] = get_object_or_404(
-            Organization, uuid=self.kwargs["org_uuid"]
-        )
+        if 'org_uuid' in self.kwargs:
+            context["organization"] = get_object_or_404(
+                Organization, uuid=self.kwargs["org_uuid"]
+            )
         return context
 
     def perform_create(self, serializer):
@@ -95,6 +97,7 @@ class OrganizationInviteView(CreateAPIView):
 class VerifyInviteView(GenericAPIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    serializer_class = serializers.Serializer
 
     def get(self, request, *args, **kwargs):
         token = request.query_params.get("token")
@@ -167,6 +170,7 @@ class ListInvitationsView(GenericAPIView):
 class CancelInviteView(GenericAPIView):
     """Cancel an invitation (only by organization admin/owner)"""
     permission_classes = [IsAuthenticated]
+    serializer_class = serializers.Serializer
 
     def post(self, request, invitation_id):
         invitation = get_object_or_404(Invitation, token=invitation_id)
@@ -196,6 +200,7 @@ class CancelInviteView(GenericAPIView):
 class DeclineInviteView(GenericAPIView):
     """Decline an invitation (only by invited user)"""
     permission_classes = [IsAuthenticated]
+    serializer_class = serializers.Serializer
 
     def post(self, request, invitation_id):
         invitation = get_object_or_404(Invitation, token=invitation_id)

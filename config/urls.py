@@ -7,6 +7,7 @@ from rest_framework import permissions
 
 import authentication.urls as auth_url
 import media.urls as media_url
+import meter.urls as meter_url
 import wallet.urls as wallet_url
 from config.admin import admin_site
 
@@ -29,6 +30,7 @@ urlpatterns = [
                 path("auth/", include(auth_url)),
                 path("media/", include(media_url)),
                 path("wallet/", include(wallet_url)),
+                path("", include(meter_url)),
             ]
         ),
     ),
