@@ -55,4 +55,5 @@ class MeterSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"detail": f"Failed to add meter: {message}"})
 
         except Exception as e:
-            raise serializers.ValidationError({"detail": str(e)})
+            # raise serializers.ValidationError({"detail": str(e)})
+            raise serializers.ValidationError({"detail": "Invalid meter number"})
