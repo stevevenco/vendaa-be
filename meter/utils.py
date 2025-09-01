@@ -20,6 +20,13 @@ def add_meter_to_service(meter_number):
         return response.json()
     except requests.exceptions.RequestException as e:
         # Handle connection errors, timeouts, etc.
+        print(f"Request failed: {e}")
+        print(f"Response content: {response.json()}")
+        response_body = response.json()
+        # if response_body['response']['code'] == 500 and response_body.get("_server_messages"):
+        #     raise serializers.ValidationError({"detail": "Invalid Meter Number"})
+        # elif response_body['response']['code'] == 500 and response_body.get("message"):
+        #     raise serializers.ValidationError({"detail": "Invalid Meter Number"})
         raise serializers.ValidationError({"detail": f"Failed to connect to meter service: {e}"})
 
 
