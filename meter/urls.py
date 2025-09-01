@@ -1,7 +1,8 @@
 from django.urls import path
-from .views import MeterListCreateView, MeterDetailView
+from .views import MeterListCreateView, MeterDetailView, GenerateMeterTokenView
 
 urlpatterns = [
-    path('meters/organizations/<uuid:org_uuid>/', MeterListCreateView.as_view(), name='meter-list-create'),
-    path('meters/<uuid:meter_uuid>/organizations/<uuid:org_uuid>/', MeterDetailView.as_view(), name='meter-detail'),
+    path('organizations/<uuid:org_uuid>/meters/', MeterListCreateView.as_view(), name='meter-list-create'),
+    path('organizations/<uuid:org_uuid>/meters/<uuid:meter_uuid>/', MeterDetailView.as_view(), name='meter-detail'),
+    path('organizations/<uuid:org_uuid>/generate-token/', GenerateMeterTokenView.as_view(), name='generate-meter-token'),
 ]

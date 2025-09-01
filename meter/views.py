@@ -1,57 +1,75 @@
-from rest_framework import generics, status, serializers
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-import meter
-
+from authentication.models import Organization
+from utils.permissions import IsOrganizationMember
 from .models import Meter
 from .serializers import MeterSerializer
-from rest_framework.views import APIView
-from .utils import add_meter_to_service
+from .token_serializers import GenerateTokenSerializer
+from .utils import generate_meter_token
 
 
-# class MeterListCreateView(generics.ListCreateAPIView):
-#     queryset = Meter.objects.all()
-#     serializer_class = MeterSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         serializer = MeterSerializer(data=request.data, added_by=self.request.user)
-#         if not serializer.is_valid():
-            
-#         try:
-#             response_from_service = add_meter_to_service(meter.meter_number)
-#             if response_from_service is None or response_from_service.get('response', {}).get('status') != 'success':
-#                 meter.delete()
-#                 raise serializers.ValidationError({"detail": "Failed to add meter to external service."})
-#         except Exception as e:
-#             meter.delete()
-#             raise serializers.ValidationError({"detail": f"An error occurred while adding meter to external service: {e}"})
-
-class MeterListCreateView(APIView):
-    permission_classes = [IsAuthenticated]
+class MeterListCreateView(generics.ListCreateAPIView):
     serializer_class = MeterSerializer
+    permission_classes = [IsAuthenticated, IsOrganizationMember]
 
-    def get(self, request, *args, **kwargs):
-        organization_id = request.query_params.get('org_uuid')
-        meters = Meter.objects.filter(organization_id=organization_id)
-        serializer = MeterSerializer(meters, many=True)
-        return Response(serializer.data)
+    def get_queryset(self):
+        return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
 
-    def post(self, request):
-        serializers = MeterSerializer(data=request.data, context={'added_by': request.user})
-        if serializers.is_valid():
-            meter = serializers.save()
-            response_serializer = MeterSerializer(meter)
-            return Response({
-                'message': 'Meter created successfully',
-                'data': response_serializer.data
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializers.errors, status=status.HTTP_400_BAD_REQUEST)
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        context['organization'] = Organization.objects.get(uuid=self.kwargs['org_uuid'])
+        return context
+
 
 class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Meter.objects.all()
     serializer_class = MeterSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOrganizationMember]
     lookup_field = 'uuid'
     lookup_url_kwarg = 'meter_uuid'
+
+    def get_queryset(self):
+        return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
+
+
+class GenerateMeterTokenView(APIView):
+    permission_classes = [IsAuthenticated, IsOrganizationMember]
+
+    def post(self, request, *args, **kwargs):
+        serializer = GenerateTokenSerializer(data=request.data)
+        if serializer.is_valid():
+            validated_data = serializer.validated_data
+            
+            # The meter number is in the request body, so we don't need to get it from the URL
+            # meter = Meter.objects.get(uuid=self.kwargs['meter_uuid'])
+            # validated_data['meter_number'] = meter.meter_number
+
+            try:
+                response_data = generate_meter_token(validated_data)
+                
+                # Process the response based on token type
+                token_type = validated_data.get('token_type')
+                if token_type == 'kct':
+                    processed_response = [
+                        {"description": item.get("description"), "token": item.get("tokenDec")}
+                        for item in response_data.get('data', {}).get('data', [])
+                    ]
+                elif token_type in ['credit', 'mse']:
+                    # Ensure data is not empty before accessing index 0
+                    data_list = response_data.get('data', {}).get('data', [])
+                    if data_list:
+                        processed_response = {"token": data_list[0].get("tokenDec")}
+                    else:
+                        processed_response = {"token": None}
+                else:
+                    processed_response = response_data
+
+                return Response(processed_response, status=status.HTTP_200_OK)
+
+            except Exception as e:
+                return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

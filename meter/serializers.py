@@ -1,22 +1,58 @@
 from rest_framework import serializers
-import requests
-from django.conf import settings
-
-from authentication.models import Organization
 from .models import Meter
-
-from meter.utils import add_meter_to_service
-
+from .utils import add_meter_to_service
 
 class MeterSerializer(serializers.ModelSerializer):
     class Meta:
         model = Meter
-        fields = '__all__'
-        read_only_fields = ['uuid', 'added_by', 'created', 'last_updated']
+        fields = [
+            "uuid",
+            "customer_name",
+            "meter_number",
+            "email",
+            "phone",
+            "address",
+            "sgc",
+            "tariff_index",
+            "key_revision_number",
+            "meter_type",
+            "added_by",
+            "organization",
+            "created",
+            "last_updated",
+        ]
+        read_only_fields = ["uuid", "added_by", "organization", "created", "last_updated"]
 
     def create(self, validated_data):
-        validated_data['added_by'] = self.context['request'].user
+        user = self.context['request'].user
+        organization = self.context['organization']
+
+        validated_data['added_by'] = user
+        validated_data['organization'] = organization
+
+        meter_number = validated_data.get('meter_number')
+
+        # Check if meter with the same number already exists for this organization
+        if Meter.objects.filter(meter_number=meter_number, organization=organization).exists():
+            raise serializers.ValidationError(
+                {"meter_number": f"A meter with number '{meter_number}' already exists in your organization."}
+            )
+
         try:
-            return add_meter_to_service(validated_data)
+            response_data = add_meter_to_service(meter_number)
+            
+            response = response_data.get('response', {})
+            status = response.get('status')
+            message = response.get('message')
+
+            if status == 'success':
+                # "Meter already exists" is considered a success by the remote service
+                # We can proceed to create it in our system if it doesn't exist
+                instance = super().create(validated_data)
+                return instance
+            else:
+                # Handle failure cases
+                raise serializers.ValidationError({"detail": f"Failed to add meter: {message}"})
+
         except Exception as e:
             raise serializers.ValidationError({"detail": str(e)})

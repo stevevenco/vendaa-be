@@ -3,6 +3,23 @@ from rest_framework import permissions
 from authentication.models import Membership
 
 
+class IsOrganizationMember(permissions.BasePermission):
+    """
+    Permission to only allow members of an organization to access a resource.
+    """
+
+    def has_permission(self, request, view):
+        organization_uuid = view.kwargs.get("org_uuid")
+        if not organization_uuid:
+            return False
+        try:
+            return Membership.objects.filter(
+                user=request.user, organization__uuid=organization_uuid
+            ).exists()
+        except Membership.DoesNotExist:
+            return False
+
+
 class IsOrganizationOwnerOrAdmin(permissions.BasePermission):
     """
     Permission to only allow owners or admins of an organization to edit it.

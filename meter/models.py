@@ -1,27 +1,8 @@
 from django.db import models
 
-from authentication.models import User
+from authentication.models import User, Organization
 from utils.models import TrackObjectStateMixin
 
-'''
-Customer Name
-Enter customer name
-Meter Number
-Enter meter number
-Email
-customer@example.com
-Phone
-+234-xxx-xxx-xxxx
-Address
-Enter customer address
-SGC
-Enter SGC
-Tariff Index
-T1, T2, etc.
-Key Revision Number
-001, 002, etc.
-Meter Type
-'''
 
 class Meter(TrackObjectStateMixin):
     METER_TYPES = [
@@ -39,7 +20,7 @@ class Meter(TrackObjectStateMixin):
     key_revision_number = models.CharField(max_length=10, blank=True, null=True)
     meter_type = models.CharField(choices=METER_TYPES, max_length=20)
     added_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='meters')
-    organization_id = models.ForeignKey('authentication.Organization', on_delete=models.CASCADE, related_name='meters', null=True)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, related_name='meters')
 
     def __str__(self):
         return f"Meter - {self.meter_number} - {self.customer_name}"
