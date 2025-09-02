@@ -22,13 +22,20 @@ class BaseTokenSerializer(serializers.Serializer):
 
 
 class KCTTokenSerializer(BaseTokenSerializer):
-    to_sgc = serializers.IntegerField()
-    to_krn = serializers.IntegerField()
-    to_ti = serializers.IntegerField()
+    meter_number = serializers.CharField()
+    token_type = serializers.CharField()
+    amount = serializers.IntegerField()
 
 
 class CreditTokenSerializer(BaseTokenSerializer):
-    subclass = serializers.IntegerField()
+    meter_number = serializers.CharField()
+    token_type = serializers.CharField()
+    amount = serializers.IntegerField()
+
+
+class ClearCreditTokenSerializer(BaseTokenSerializer):
+    meter_number = serializers.CharField()
+    token_type = serializers.CharField()
     amount = serializers.IntegerField()
 
 
@@ -46,6 +53,8 @@ class GenerateTokenSerializer(serializers.Serializer):
             serializer = KCTTokenSerializer(data=data)
         elif token_type == 'credit':
             serializer = CreditTokenSerializer(data=data)
+        elif token_type == 'clear_credit':
+            serializer = ClearCreditTokenSerializer(data=data)
         elif token_type == 'mse':
             serializer = MSETokenSerializer(data=data)
         else:

@@ -42,22 +42,22 @@ class GenerateMeterTokenView(APIView):
         serializer = GenerateTokenSerializer(data=request.data)
         if serializer.is_valid():
             validated_data = serializer.validated_data
-            
+
             # The meter number is in the request body, so we don't need to get it from the URL
             # meter = Meter.objects.get(uuid=self.kwargs['meter_uuid'])
             # validated_data['meter_number'] = meter.meter_number
 
             try:
-                response_data = generate_meter_token(validated_data)
-                
-                # Process the response based on token type
                 token_type = validated_data.get('token_type')
+                response_data = generate_meter_token(token_type, validated_data)
+
+                # Process the response based on token type
                 if token_type == 'kct':
                     processed_response = [
                         {"description": item.get("description"), "token": item.get("tokenDec")}
                         for item in response_data.get('data', {}).get('data', [])
                     ]
-                elif token_type in ['credit', 'mse']:
+                elif token_type in ['credit', 'clear_credit']:
                     # Ensure data is not empty before accessing index 0
                     data_list = response_data.get('data', {}).get('data', [])
                     if data_list:

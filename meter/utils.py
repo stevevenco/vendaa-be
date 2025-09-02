@@ -30,7 +30,7 @@ def add_meter_to_service(meter_number):
         raise serializers.ValidationError({"detail": f"Failed to connect to meter service: {e}"})
 
 
-def generate_meter_token(token_data):
+def generate_meter_token(token_type, token_data):
     """
     Calls the external meter service to generate a token.
     """
@@ -39,6 +39,44 @@ def generate_meter_token(token_data):
         'Content-Type': 'application/json',
         'Authorization': f'token {settings.METER_SERVICES_TOKEN}'
     }
+
+    if token_type == "credit":
+        token_data["subclass"] = 2
+        token_data["ea"] = 7
+        token_data["tct"] = 2
+        token_data["sgc"] = 600675
+        token_data["krn"] = 2
+        token_data["ti"] = 10
+        token_data["allow_krn_update"] = False
+        token_data["key_expiry_number"] = 255
+        token_data["use3kct"] = False
+        token_data["allow_ken_update"] = False
+    elif token_type == "kct":
+        token_data["subclass"] = 2
+        token_data["ea"] = 7
+        token_data["tct"] = 2
+        token_data["sgc"] = 600675
+        token_data["krn"] = 2
+        token_data["ti"] = 10
+        token_data["allow_krn_update"] = False
+        token_data["key_expiry_number"] = 255
+        token_data["allow_ken_update"] = False
+        token_data["to_sgc"] = 600675
+        token_data["to_krn"] = 2
+        token_data["to_ti"] = 12
+    elif token_type == "clear_credit":
+        token_data["token_type"] = "mse"
+        token_data["subclass"] = 5
+        token_data["ea"] = 7
+        token_data["tct"] = 2
+        token_data["sgc"] = 600675
+        token_data["krn"] = 2
+        token_data["ti"] = 10
+        token_data["allow_krn_update"] = False
+        token_data["key_expiry_number"] = 255
+        token_data["use3kct"] = False
+        token_data["allow_ken_update"] = False
+
     try:
         response = requests.post(url, json=token_data, headers=headers)
         response.raise_for_status()
