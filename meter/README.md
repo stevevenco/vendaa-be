@@ -180,8 +180,8 @@ Deletes a meter.
 
 Generates a token for a given meter.
 
-- **Endpoint**: `POST /api/v1/organizations/{org_uuid}/generate-token/`
-- **Method**: `POST`
+- **Endpoint**: `GET /api/v1/organizations/{org_uuid}/generate-token/`
+- **Method**: `GET`
 - **URL Parameters**:
   - `org_uuid` (string, required): The UUID of the organization.
 - **Request Body**:

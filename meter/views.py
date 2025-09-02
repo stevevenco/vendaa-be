@@ -38,7 +38,7 @@ class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
 class GenerateMeterTokenView(APIView):
     permission_classes = [IsAuthenticated, IsOrganizationMember]
 
-    def post(self, request, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         serializer = GenerateTokenSerializer(data=request.data)
         if serializer.is_valid():
             validated_data = serializer.validated_data
@@ -48,16 +48,16 @@ class GenerateMeterTokenView(APIView):
             # validated_data['meter_number'] = meter.meter_number
 
             try:
-                response_data = generate_meter_token(validated_data)
-                
-                # Process the response based on token type
                 token_type = validated_data.get('token_type')
+                response_data = generate_meter_token(token_type, validated_data)
+
+                # Process the response based on token type
                 if token_type == 'kct':
                     processed_response = [
                         {"description": item.get("description"), "token": item.get("tokenDec")}
                         for item in response_data.get('data', {}).get('data', [])
                     ]
-                elif token_type in ['credit', 'mse']:
+                elif token_type in ['credit', 'clear_credit']:
                     # Ensure data is not empty before accessing index 0
                     data_list = response_data.get('data', {}).get('data', [])
                     if data_list:
