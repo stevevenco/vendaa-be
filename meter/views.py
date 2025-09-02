@@ -38,11 +38,11 @@ class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
 class GenerateMeterTokenView(APIView):
     permission_classes = [IsAuthenticated, IsOrganizationMember]
 
-    def get(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         serializer = GenerateTokenSerializer(data=request.data)
         if serializer.is_valid():
             validated_data = serializer.validated_data
-            
+
             # The meter number is in the request body, so we don't need to get it from the URL
             # meter = Meter.objects.get(uuid=self.kwargs['meter_uuid'])
             # validated_data['meter_number'] = meter.meter_number
