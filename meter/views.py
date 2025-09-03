@@ -57,7 +57,7 @@ class GenerateMeterTokenView(APIView):
                         {"description": item.get("description"), "token": item.get("tokenDec")}
                         for item in response_data.get('data', {}).get('data', [])
                     ]
-                elif token_type in ['credit', 'clear_credit']:
+                elif token_type in ['credit', 'clear_credit', 'clear_tamper']:
                     # Ensure data is not empty before accessing index 0
                     data_list = response_data.get('data', {}).get('data', [])
                     if data_list:

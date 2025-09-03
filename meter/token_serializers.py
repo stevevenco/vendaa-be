@@ -39,6 +39,17 @@ class ClearCreditTokenSerializer(BaseTokenSerializer):
     amount = serializers.IntegerField()
 
 
+class ClearTamperTokenSerializer(BaseTokenSerializer):
+    meter_number = serializers.CharField()
+    token_type = serializers.CharField()
+    amount = serializers.IntegerField()
+
+    def validate_amount(self, value):
+        if value >= 1:
+            raise serializers.ValidationError("Amount must be lower than 1.")
+        return value
+
+
 class MSETokenSerializer(BaseTokenSerializer):
     subclass = serializers.IntegerField()
     amount = serializers.IntegerField()
@@ -55,6 +66,8 @@ class GenerateTokenSerializer(serializers.Serializer):
             serializer = CreditTokenSerializer(data=data)
         elif token_type == 'clear_credit':
             serializer = ClearCreditTokenSerializer(data=data)
+        elif token_type == 'clear_tamper':
+            serializer = ClearTamperTokenSerializer(data=data)
         elif token_type == 'mse':
             serializer = MSETokenSerializer(data=data)
         else:
