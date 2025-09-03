@@ -66,6 +66,18 @@ def generate_meter_token(token_type, token_data):
         token_data["to_ti"] = 12
     elif token_type == "clear_credit":
         token_data["token_type"] = "mse"
+        token_data["subclass"] = 1
+        token_data["ea"] = 7
+        token_data["tct"] = 2
+        token_data["sgc"] = 600675
+        token_data["krn"] = 2
+        token_data["ti"] = 10
+        token_data["allow_krn_update"] = False
+        token_data["key_expiry_number"] = 255
+        token_data["use3kct"] = False
+        token_data["allow_ken_update"] = False
+    elif token_type == "clear_tamper":
+        token_data["token_type"] = "mse"
         token_data["subclass"] = 5
         token_data["ea"] = 7
         token_data["tct"] = 2
