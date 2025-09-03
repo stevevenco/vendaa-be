@@ -27,6 +27,6 @@ COPY . /usr/src/app/
 EXPOSE 8000
 
 # Run Gunicorn with the Pipenv environment
-# CMD ["pipenv", "run", "gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
+CMD ["pipenv", "run", "gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
 # Run Gunicorn with limited workers & threads
-CMD ["pipenv", "run", "gunicorn", "--workers=2", "--threads=2", "--timeout=120", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
+# CMD ["pipenv", "run", "gunicorn", "--workers=2", "--threads=2", "--timeout=120", "--bind", "0.0.0.0:8000", "config.wsgi:application"]

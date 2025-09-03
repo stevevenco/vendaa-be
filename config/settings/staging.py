@@ -52,7 +52,8 @@ CORS_ALLOW_CREDENTIALS = True
 ALLOWED_HOSTS = [
     "vendaa-be.onrender.com",
     "http://localhost:8000",
-    "localhost:8000"
+    "localhost:8000",
+    "localhost"
 ]
 
 
