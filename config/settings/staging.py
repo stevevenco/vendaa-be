@@ -1,6 +1,7 @@
 import os
 
 from dotenv import load_dotenv
+import dj_database_url
 
 from .base import *  # noqa 403
 
@@ -57,14 +58,26 @@ ALLOWED_HOSTS = [
 ]
 
 
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": os.getenv("DATABASE_NAME"),
+#         "USER": os.getenv("DATABASE_USER"),
+#         "PASSWORD": os.getenv("DATABASE_PASSWORD"),
+#         "HOST": os.getenv("DATABASE_HOST"),
+#         "PORT": os.getenv("DATABASE_PORT", "5432"),  # Default PostgreSQL port
+#         "OPTIONS": {"sslmode": "require"},
+#     }
+# }
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DATABASE_NAME"),
-        "USER": os.getenv("DATABASE_USER"),
-        "PASSWORD": os.getenv("DATABASE_PASSWORD"),
-        "HOST": os.getenv("DATABASE_HOST"),
-        "PORT": os.getenv("DATABASE_PORT", "5432"),  # Default PostgreSQL port
-        "OPTIONS": {"sslmode": "require"},
-    }
+    "default": dj_database_url.config(
+        default=(
+            f"postgresql://{os.getenv('DATABASE_USER')}:{os.getenv('DATABASE_PASSWORD')}"
+            f"@{os.getenv('DATABASE_HOST')}:{os.getenv('DATABASE_PORT', '6543')}/"
+            f"{os.getenv('DATABASE_NAME')}"
+        ),
+        conn_max_age=600,
+        ssl_require=True,
+    )
 }
