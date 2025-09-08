@@ -15,7 +15,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Membership, Organization, User, Invitation
+from .models import Membership, Organization, User, Invitation, APIKey
 from .serializers import (
     CustomTokenObtainPairSerializer,
     ChangePasswordSerializer,
@@ -32,7 +32,10 @@ from .serializers import (
     OTPVerifySerializer,
     RequestOTPSerializer,
     UserModelSerializer,
+    APIKeySerializer,
+    APIKeyCreateSerializer,
 )
+from .backends import APIKeyAuthentication
 from .utils import create_otp, send_invitation_email, send_otp
 
 from utils.permissions import IsOrganizationOwnerOrAdmin
@@ -266,6 +269,8 @@ class MemberListCreateView(ListCreateAPIView):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
+        if getattr(self, "swagger_fake_view", False):
+            return context
         context["organization"] = get_object_or_404(
             Organization, uuid=self.kwargs["org_uuid"]
         )
@@ -461,6 +466,63 @@ class ChangePasswordView(GenericAPIView):
 
     def patch(self, request, *args, **kwargs):
         return self.post(request, *args, **kwargs)
+
+
+class TestAPIKeyView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [APIKeyAuthentication]
+
+    def get(self, request, *args, **kwargs):
+        return Response({"detail": "API Key authentication successful."}, status=status.HTTP_200_OK)
+
+
+class APIKeyListCreateView(ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return APIKeyCreateSerializer
+        return APIKeySerializer
+
+    def get_queryset(self):
+        return APIKey.objects.filter(
+            organization__uuid=self.kwargs["org_uuid"], created_by=self.request.user
+        )
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if getattr(self, "swagger_fake_view", False):
+            return context
+        context["organization"] = get_object_or_404(
+            Organization, uuid=self.kwargs["org_uuid"]
+        )
+        return context
+
+    def perform_create(self, serializer):
+        api_key = serializer.save()
+        # The unhashed key is stored on the instance by the serializer.
+        # We add it to the response data here.
+        self.key = api_key.key
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        data = {"key": self.key, **serializer.data}
+        return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class APIKeyDetailView(RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
+    serializer_class = APIKeySerializer
+    lookup_field = "uuid"
+    lookup_url_kwarg = "api_key_uuid"
+
+    def get_queryset(self):
+        return APIKey.objects.filter(
+            organization__uuid=self.kwargs["org_uuid"], created_by=self.request.user
+        )
 
 
 class ResetForgotPasswordView(GenericAPIView):
