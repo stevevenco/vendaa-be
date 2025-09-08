@@ -1,6 +1,6 @@
 from rest_framework import permissions
 
-from authentication.models import Membership
+from authentication.models import Membership, APIKey
 
 
 class IsOrganizationMember(permissions.BasePermission):
@@ -59,6 +59,22 @@ class IsWriteOnly(permissions.BasePermission):
         # Allow access to safe methods
         # (GET, HEAD, OPTIONS) only for staff users
         return bool(request.user and request.user.is_staff)
+
+
+class IsOrganizationMemberOrAPIToken(permissions.BasePermission):
+    """
+    Permission to allow access if the user is a member of the organization
+    or if the request is authenticated with a valid API token for the organization.
+    """
+
+    def has_permission(self, request, view):
+        if request.auth and isinstance(request.auth, APIKey):
+            organization_uuid = view.kwargs.get("org_uuid")
+            if not organization_uuid:
+                return False
+            return request.auth.organization.uuid == organization_uuid
+        
+        return IsOrganizationMember().has_permission(request, view)
 
 
 class AllowOnlyRetrieve(permissions.BasePermission):

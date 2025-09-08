@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from authentication.models import Organization
-from utils.permissions import IsOrganizationMember
+from utils.permissions import IsOrganizationMember, IsOrganizationMemberOrAPIToken
 from .models import Meter
 from .serializers import MeterSerializer
 from .token_serializers import GenerateTokenSerializer
@@ -36,7 +36,7 @@ class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class GenerateMeterTokenView(APIView):
-    permission_classes = [IsAuthenticated, IsOrganizationMember]
+    permission_classes = [IsOrganizationMemberOrAPIToken]
 
     def post(self, request, *args, **kwargs):
         serializer = GenerateTokenSerializer(data=request.data)
