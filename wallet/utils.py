@@ -126,6 +126,7 @@ def get_wallet_balance(wallet_id):
 
     response = requests.get(url, headers=headers, params=params)
     response_data = response.json()
+    print(f"\n\nresponse_data: {response_data}\n\n")
 
     if response.status_code == 200 and response_data.get('status') == 'success':
         balance_data = response_data['data']

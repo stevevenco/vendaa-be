@@ -180,37 +180,33 @@ Deletes a meter.
 
 Generates a token for a given meter.
 
-- **Endpoint**: `POST /api/v1/organizations/{org_uuid}/generate-token/`
-- **Method**: `POST`
+- **Endpoint**: `GET /api/v1/organizations/{org_uuid}/generate-token/`
+- **Method**: `GET`
 - **URL Parameters**:
   - `org_uuid` (string, required): The UUID of the organization.
 - **Request Body**:
   - **For KCT Token**:
     ```json
     {
-        "token_type": "kct",
-        "meter_number": "0179000982118",
-        "to_sgc": 600675,
-        "to_krn": 2,
-        "to_ti": 12
+      "token_type": "kct",
+      "meter_number": "0179000982118",
+      "amount": 10
     }
     ```
   - **For Credit Token**:
     ```json
     {
-        "token_type": "credit",
-        "meter_number": "0179000982118",
-        "subclass": 2,
-        "amount": 20
+      "token_type": "credit",
+      "meter_number": "0179000982118",
+      "amount": 10
     }
     ```
   - **For MSE Token (Clear Credit)**:
     ```json
     {
-        "token_type": "mse",
-        "meter_number": "0179000982118",
-        "subclass": 1,
-        "amount": 20
+      "token_type": "clear_credit",
+      "meter_number": "0179000982118",
+      "amount": 10
     }
     ```
 - **Success Response**:
