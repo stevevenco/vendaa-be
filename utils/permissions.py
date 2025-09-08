@@ -68,12 +68,17 @@ class IsOrganizationMemberOrAPIToken(permissions.BasePermission):
     """
 
     def has_permission(self, request, view):
-        if request.auth and isinstance(request.auth, APIKey):
-            organization_uuid = view.kwargs.get("org_uuid")
-            if not organization_uuid:
+        # Check if authentication was done via API Key by checking for a unique attribute.
+        if request.auth and hasattr(request.auth, "prefix"):
+            organization_uuid_str = view.kwargs.get("org_uuid")
+            if not organization_uuid_str:
                 return False
-            return request.auth.organization.uuid == organization_uuid
-        
+            # Compare the string representation of the UUIDs to avoid type errors.
+            # print(f"\n\nComparing API Key Organization UUID: {request.auth.organization.uuid} with Path UUID: {organization_uuid_str}")
+            # print(f"Result: {str(request.auth.organization.uuid) == str(organization_uuid_str)}\n\n")
+            return str(request.auth.organization.uuid) == str(organization_uuid_str)
+
+        # If not API Key auth, fall back to standard organization membership check for JWT/session.
         return IsOrganizationMember().has_permission(request, view)
 
 

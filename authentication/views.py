@@ -35,6 +35,7 @@ from .serializers import (
     APIKeySerializer,
     APIKeyCreateSerializer,
 )
+from .backends import APIKeyAuthentication
 from .utils import create_otp, send_invitation_email, send_otp
 
 from utils.permissions import IsOrganizationOwnerOrAdmin
@@ -268,6 +269,8 @@ class MemberListCreateView(ListCreateAPIView):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
+        if getattr(self, "swagger_fake_view", False):
+            return context
         context["organization"] = get_object_or_404(
             Organization, uuid=self.kwargs["org_uuid"]
         )
@@ -467,6 +470,7 @@ class ChangePasswordView(GenericAPIView):
 
 class TestAPIKeyView(APIView):
     permission_classes = [IsAuthenticated]
+    authentication_classes = [APIKeyAuthentication]
 
     def get(self, request, *args, **kwargs):
         return Response({"detail": "API Key authentication successful."}, status=status.HTTP_200_OK)
@@ -487,6 +491,8 @@ class APIKeyListCreateView(ListCreateAPIView):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
+        if getattr(self, "swagger_fake_view", False):
+            return context
         context["organization"] = get_object_or_404(
             Organization, uuid=self.kwargs["org_uuid"]
         )

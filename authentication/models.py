@@ -1,4 +1,6 @@
 import uuid
+import secrets
+import hashlib
 from datetime import timedelta
 from django.contrib.auth.models import (
     AbstractBaseUser,
@@ -163,10 +165,6 @@ class Invitation(TrackObjectStateMixin):
 
     def __str__(self):
         return f"Invitation for {self.email} to {self.organization.name}"
-
-
-import secrets
-import hashlib
 
 
 class APIKeyManager(models.Manager):

@@ -2,6 +2,7 @@ from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from .models import APIKey, User
 import hashlib
+import hmac
 
 
 class APIKeyAuthentication(BaseAuthentication):
@@ -23,11 +24,11 @@ class APIKeyAuthentication(BaseAuthentication):
             raise AuthenticationFailed("Invalid API Key.")
 
         hashed_key = hashlib.sha256(key.encode()).hexdigest()
-        if not hashlib.secure_compare(hashed_key, api_key.hashed_key):
+        if not hmac.compare_digest(hashed_key, api_key.hashed_key):
             raise AuthenticationFailed("Invalid API Key.")
 
-        if not api_key.organization.is_active:
-            raise AuthenticationFailed("Organization is inactive.")
+        # if not api_key.organization.is_active:
+        #     raise AuthenticationFailed("Organization is inactive.")
 
         user = api_key.created_by
         if not user or not user.is_active:
