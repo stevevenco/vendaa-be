@@ -168,36 +168,33 @@ class Invitation(TrackObjectStateMixin):
 
 
 class APIKeyManager(models.Manager):
-    def create_key(self, *, name: str, organization: "Organization", created_by: "User") -> tuple["APIKey", str]:
+    def create_key(self, *, organization: "Organization", created_by: "User") -> tuple["APIKey", str]:
         prefix = secrets.token_hex(4)
         key = secrets.token_hex(24)
         hashed_key = hashlib.sha256(key.encode()).hexdigest()
 
         api_key = self.create(
-            name=name,
             organization=organization,
             created_by=created_by,
             prefix=prefix,
             hashed_key=hashed_key,
         )
-        return api_key, f"{prefix}.{key}"
+        return api_key, f"sk-{prefix}.{key}"
 
 
 class APIKey(TrackObjectStateMixin):
-    name = models.CharField(max_length=255)
-    organization = models.ForeignKey(
-        Organization, on_delete=models.CASCADE, related_name="api_keys"
+    organization = models.OneToOneField(
+        Organization, on_delete=models.CASCADE, related_name="api_key"
     )
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name="api_keys"
     )
     prefix = models.CharField(max_length=8, unique=True)
     hashed_key = models.CharField(max_length=128)
-    last_used = models.DateTimeField(null=True, blank=True)
 
     objects = APIKeyManager()
 
     def __str__(self):
-        return f"API Key {self.name} for {self.organization.name}"
+        return f"API Key for {self.organization.name}"
 
 

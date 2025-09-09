@@ -14,6 +14,9 @@ class APIKeyAuthentication(BaseAuthentication):
 
         try:
             _, key = auth_header.split()
+            if not key.startswith("sk-"):
+                raise ValueError
+            key = key[3:]  # strip "sk-"
             prefix, key = key.split(".")
         except ValueError:
             raise AuthenticationFailed("Invalid API Key format.")
