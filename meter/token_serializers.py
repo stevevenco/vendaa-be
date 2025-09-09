@@ -30,7 +30,15 @@ class KCTTokenSerializer(BaseTokenSerializer):
 class CreditTokenSerializer(BaseTokenSerializer):
     meter_number = serializers.CharField()
     token_type = serializers.CharField()
-    amount = serializers.IntegerField()
+    amount = serializers.IntegerField(required=False)
+    utility_units = serializers.IntegerField(required=False)
+
+    def validate(self, data):
+        if 'amount' not in data and 'utility_units' not in data:
+            raise serializers.ValidationError("Either 'amount' or 'utility_units' is required.")
+        if 'amount' in data and 'utility_units' in data:
+            raise serializers.ValidationError("Provide either 'amount' or 'utility_units', not both.")
+        return data
 
 
 class ClearCreditTokenSerializer(BaseTokenSerializer):

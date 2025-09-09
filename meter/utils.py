@@ -89,6 +89,9 @@ def generate_meter_token(token_type, token_data):
         token_data["use3kct"] = False
         token_data["allow_ken_update"] = False
 
+    if 'amount' in token_data:
+        token_data['amount'] = float(token_data['amount'])
+
     try:
         response = requests.post(url, json=token_data, headers=headers)
         response.raise_for_status()

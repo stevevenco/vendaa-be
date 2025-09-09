@@ -37,11 +37,10 @@ class WalletBalanceView(APIView):
 
         try:
             # Get current balance from meter services
-            available_balance = get_wallet_balance(wallet.wallet_id)
+            external_balance_str = get_wallet_balance(wallet.wallet_id)
 
             # Clean up the balance string to decimal for comparison
-            # Remove currency symbol, spaces, and any commas
-            cleaned_balance = available_balance.replace('₦', '').replace(',', '').strip()
+            cleaned_balance = external_balance_str.replace('₦', '').replace(',', '').strip()
             balance_decimal = Decimal(cleaned_balance)
 
             # Update wallet if external balance is higher
@@ -49,7 +48,12 @@ class WalletBalanceView(APIView):
                 wallet.available_balance = balance_decimal
                 wallet.save()
 
-            serializer = WalletBalanceSerializer({'balance': available_balance, 'wallet_id': wallet.wallet_id, 'currency': wallet.currency})
+            serializer = WalletBalanceSerializer({
+                'available_balance': f"₦{wallet.available_balance:,.2f}",
+                'ledger_balance': f"₦{wallet.ledger_balance:,.2f}",
+                'wallet_id': wallet.wallet_id,
+                'currency': wallet.currency
+            })
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:

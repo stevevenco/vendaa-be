@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Meter
+from .models import Meter, UtilityCost
 from .utils import add_meter_to_service
 
 class MeterSerializer(serializers.ModelSerializer):
@@ -57,3 +57,17 @@ class MeterSerializer(serializers.ModelSerializer):
         except Exception as e:
             # raise serializers.ValidationError({"detail": str(e)})
             raise serializers.ValidationError({"detail": "Invalid meter number"})
+
+
+class UtilityCostSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UtilityCost
+        fields = ["uuid", "name", "cost", "created", "last_updated"]
+        read_only_fields = ["uuid", "created", "last_updated"]
+
+    def validate_name(self, value):
+        value = str(value).lower()
+        if UtilityCost.objects.filter(name=value).exists():
+            raise serializers.ValidationError("Utility cost with this name already exists.")
+        return value
+

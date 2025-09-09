@@ -24,7 +24,8 @@ class WalletSerializer(serializers.ModelSerializer):
         read_only_fields = ['wallet_id', 'created_by', 'currency', 'available_balance']
 
 class WalletBalanceSerializer(serializers.Serializer):
-    balance = serializers.CharField()
+    available_balance = serializers.CharField()
+    ledger_balance = serializers.CharField()
     wallet_id = serializers.CharField()
     currency = serializers.CharField()
 
