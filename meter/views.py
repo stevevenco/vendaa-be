@@ -2,9 +2,11 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
+from authentication.backends import APIKeyAuthentication
 from authentication.models import Organization
-from utils.permissions import IsOrganizationMember
+from utils.permissions import IsOrganizationMember, IsOrganizationMemberOrAPIToken
 from .models import Meter
 from .serializers import MeterSerializer
 from .token_serializers import GenerateTokenSerializer
@@ -36,7 +38,8 @@ class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class GenerateMeterTokenView(APIView):
-    permission_classes = [IsAuthenticated, IsOrganizationMember]
+    permission_classes = [IsAuthenticated, IsOrganizationMemberOrAPIToken]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
 
     def post(self, request, *args, **kwargs):
         serializer = GenerateTokenSerializer(data=request.data)
@@ -71,5 +74,5 @@ class GenerateMeterTokenView(APIView):
 
             except Exception as e:
                 return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

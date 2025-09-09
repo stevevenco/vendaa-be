@@ -19,6 +19,9 @@ from .views import (
     UserUpdateView,
     VerifyInviteView,
     VerifyOTPView,
+    APIKeyListCreateView,
+    APIKeyDetailView,
+    TestAPIKeyView,
 )
 
 urlpatterns = [
@@ -71,4 +74,17 @@ urlpatterns = [
     path("invites/accept/", AcceptInviteView.as_view(), name="invite_acceptance"),
     path("invites/<uuid:invitation_id>/cancel/", CancelInviteView.as_view(), name="cancel_invite"),
     path("invites/<uuid:invitation_id>/decline/", DeclineInviteView.as_view(), name="decline_invite"),
+
+    # ----- API KEYS ------ #
+    path(
+        "organizations/<uuid:org_uuid>/api-keys/",
+        APIKeyListCreateView.as_view(),
+        name="api_key_list_create",
+    ),
+    path(
+        "organizations/<uuid:org_uuid>/api-keys/<uuid:api_key_uuid>/",
+        APIKeyDetailView.as_view(),
+        name="api_key_detail",
+    ),
+    path("test-api-key/", TestAPIKeyView.as_view(), name="test_api_key"),
 ]

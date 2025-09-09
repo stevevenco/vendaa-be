@@ -6,7 +6,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from authentication.exceptions import InvalidOTP
 
-from .models import Invitation, Membership, Organization, User, OTP
+from .models import Invitation, Membership, Organization, User, OTP, APIKey
 from .utils import verify_otp, hash_otp
 
 # from utils.serializers import BaseSerializer
@@ -336,3 +336,29 @@ class ResetForgotPasswordSerializer(serializers.Serializer):
             user.set_password(self.validated_data["new_password"])
             user.save()
         return user
+
+
+class APIKeySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = APIKey
+        fields = ("uuid", "name", "prefix", "created", "last_used")
+        read_only_fields = ("uuid", "prefix", "created", "last_used")
+
+
+class APIKeyCreateSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(required=True)
+
+    class Meta:
+        model = APIKey
+        fields = ("name",)
+
+    def create(self, validated_data):
+        organization = self.context["organization"]
+        user = self.context["request"].user
+        api_key, key = APIKey.objects.create_key(
+            name=validated_data["name"], organization=organization, created_by=user
+        )
+        # The unhashed key is returned to the user only once upon creation.
+        # We add it to the instance so it can be returned by the view.
+        api_key.key = key
+        return api_key
