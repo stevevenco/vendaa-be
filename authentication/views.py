@@ -485,9 +485,8 @@ class APIKeyListCreateView(ListCreateAPIView):
         return APIKeySerializer
 
     def get_queryset(self):
-        return APIKey.objects.filter(
-            organization__uuid=self.kwargs["org_uuid"], created_by=self.request.user
-        )
+        # Since an organization can only have one API key, this will return a list with one key or an empty list
+        return APIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -505,12 +504,23 @@ class APIKeyListCreateView(ListCreateAPIView):
         self.key = api_key.key
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        data = {"key": self.key, **serializer.data}
+        # No request body is needed, so we pass an empty dictionary to the serializer
+        create_serializer = self.get_serializer(data={})
+        create_serializer.is_valid(raise_exception=True)
+        self.perform_create(create_serializer)
+        headers = self.get_success_headers(create_serializer.data)
+
+        # We use the APIKeySerializer to return the full data of the created key
+        read_serializer = APIKeySerializer(self.key_instance)
+        data = {"key": self.key, **read_serializer.data}
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+    
+    def perform_create(self, serializer):
+        api_key = serializer.save()
+        # The unhashed key is stored on the instance by the serializer.
+        # We add it to the response data here.
+        self.key = api_key.key
+        self.key_instance = api_key
 
 
 class APIKeyDetailView(RetrieveUpdateDestroyAPIView):
@@ -520,9 +530,12 @@ class APIKeyDetailView(RetrieveUpdateDestroyAPIView):
     lookup_url_kwarg = "api_key_uuid"
 
     def get_queryset(self):
-        return APIKey.objects.filter(
-            organization__uuid=self.kwargs["org_uuid"], created_by=self.request.user
-        )
+        return APIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
 
 class ResetForgotPasswordView(GenericAPIView):

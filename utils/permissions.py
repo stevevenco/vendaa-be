@@ -61,6 +61,18 @@ class IsWriteOnly(permissions.BasePermission):
         return bool(request.user and request.user.is_staff)
 
 
+class IsReadOnlyOrAdmin(permissions.BasePermission):
+    """
+    Permission to only allow read-only access to a resource.
+    And Write access for admin users.
+    """
+
+    def has_permission(self, request, view):
+        if request.method == "GET":
+            return bool(request.user and request.user.is_authenticated)
+        return bool(request.user and request.user.is_staff)
+
+
 class IsOrganizationMemberOrAPIToken(permissions.BasePermission):
     """
     Permission to allow access if the user is a member of the organization

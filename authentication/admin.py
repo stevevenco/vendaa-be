@@ -1,6 +1,6 @@
 from authentication.models import (
   OTP, Membership, Organization, User,
-  Invitation
+  Invitation, APIKey
   )
 from config.admin import admin_site
 
@@ -9,3 +9,4 @@ admin_site.register(OTP)
 admin_site.register(Organization)
 admin_site.register(Membership)
 admin_site.register(Invitation)
+admin_site.register(APIKey)

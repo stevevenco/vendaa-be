@@ -339,24 +339,31 @@ class ResetForgotPasswordSerializer(serializers.Serializer):
 
 
 class APIKeySerializer(serializers.ModelSerializer):
+    prefix = serializers.SerializerMethodField()
+
     class Meta:
         model = APIKey
-        fields = ("uuid", "name", "prefix", "created", "last_used")
-        read_only_fields = ("uuid", "prefix", "created", "last_used")
+        fields = ("uuid", "prefix", "created")
+        read_only_fields = ("uuid", "prefix", "created")
+
+    def get_prefix(self, obj):
+        return f"sk-{obj.prefix}"
 
 
 class APIKeyCreateSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(required=True)
-
     class Meta:
         model = APIKey
-        fields = ("name",)
+        fields = ()
 
     def create(self, validated_data):
         organization = self.context["organization"]
         user = self.context["request"].user
+        
+        # If a key already exists for this organization, delete it
+        APIKey.objects.filter(organization=organization).delete()
+        
         api_key, key = APIKey.objects.create_key(
-            name=validated_data["name"], organization=organization, created_by=user
+            organization=organization, created_by=user
         )
         # The unhashed key is returned to the user only once upon creation.
         # We add it to the instance so it can be returned by the view.
