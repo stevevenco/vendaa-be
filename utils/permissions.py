@@ -1,6 +1,6 @@
 from rest_framework import permissions
 
-from authentication.models import Membership, APIKey
+from authentication.models import Membership, SecretAPIKey, PublicAPIKey
 
 
 class IsOrganizationMember(permissions.BasePermission):
@@ -92,6 +92,50 @@ class IsOrganizationMemberOrAPIToken(permissions.BasePermission):
 
         # If not API Key auth, fall back to standard organization membership check for JWT/session.
         return IsOrganizationMember().has_permission(request, view)
+
+
+# class IsSecretAPIToken(permissions.BasePermission):
+#     """
+#     Permission to allow access if the request is authenticated with a valid Secret API token.
+#     """
+
+#     '''
+#     auth_header = request.headers.get("Authorization")
+
+#         if not auth_header or not auth_header.startswith("Api-Key "):
+#             return None
+
+#         try:
+#             _, key = auth_header.split()
+#             key = key[3:]  # strip "sk-" or "pk-"
+#             prefix, key = key.split(".")
+#             if key.startswith("sk-"):
+#                 return SecretAPIKeyAuthentication.authenticate(request, key=key, prefix=prefix)
+#             elif key.startswith("pk-"):
+#                 return PublicAPIKeyAuthentication.authenticate(request, key=key, prefix=prefix)
+#             else:
+#                 raise AuthenticationFailed("Invalid API Key.")
+#         except ValueError:
+#             raise AuthenticationFailed("Invalid API Key format.")
+#     '''
+
+#     def has_permission(self, request, view):
+#         # Check if authentication was done via API Key by checking for a unique attribute.
+#         auth_header = request.headers.get("Authorization")
+#         if request.auth and hasattr(request.auth, "prefix"):
+#             auth_header = request.headers.get("Authorization")
+#             _, key = auth_header.split()
+#             key = key[3:]  # strip "sk-" or "pk-"
+#             _, key = key.split(".")
+#             if not key.startswith("sk-"):
+#                 return False
+#             organization_uuid_str = view.kwargs.get("org_uuid")
+#             if not organization_uuid_str:
+#                 return False
+#             return str(request.auth.organization.uuid) == str(organization_uuid_str)
+
+#         # If not API Key auth, fall back to standard organization membership check for JWT/session.
+#         return IsOrganizationMember().has_permission(request, view)
 
 
 class AllowOnlyRetrieve(permissions.BasePermission):

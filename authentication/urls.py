@@ -19,8 +19,10 @@ from .views import (
     UserUpdateView,
     VerifyInviteView,
     VerifyOTPView,
-    APIKeyListCreateView,
-    APIKeyDetailView,
+    SecretAPIKeyListCreateView,
+    PublicAPIKeyListCreateView,
+    SecretAPIKeyDetailView,
+    PublicAPIKeyDetailView,
     TestAPIKeyView,
 )
 
@@ -77,14 +79,24 @@ urlpatterns = [
 
     # ----- API KEYS ------ #
     path(
-        "organizations/<uuid:org_uuid>/api-keys/",
-        APIKeyListCreateView.as_view(),
-        name="api_key_list_create",
+        "organizations/<uuid:org_uuid>/sk-api-keys/",
+        SecretAPIKeyListCreateView.as_view(),
+        name="sk_api_key_list_create",
     ),
     path(
-        "organizations/<uuid:org_uuid>/api-keys/<uuid:api_key_uuid>/",
-        APIKeyDetailView.as_view(),
-        name="api_key_detail",
+        "organizations/<uuid:org_uuid>/sk-api-keys/<uuid:api_key_uuid>/",
+        SecretAPIKeyDetailView.as_view(),
+        name="sk_api_key_detail",
+    ),
+    path(
+        "organizations/<uuid:org_uuid>/pk-api-keys/",
+        PublicAPIKeyListCreateView.as_view(),
+        name="pk_api_key_list_create",
+    ),
+    path(
+        "organizations/<uuid:org_uuid>/pk-api-keys/<uuid:api_key_uuid>/",
+        PublicAPIKeyDetailView.as_view(),
+        name="pk_api_key_detail",
     ),
     path("test-api-key/", TestAPIKeyView.as_view(), name="test_api_key"),
 ]

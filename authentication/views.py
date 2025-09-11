@@ -15,7 +15,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Membership, Organization, User, Invitation, APIKey
+from .models import Membership, Organization, User, Invitation, SecretAPIKey, PublicAPIKey
 from .serializers import (
     CustomTokenObtainPairSerializer,
     ChangePasswordSerializer,
@@ -32,8 +32,10 @@ from .serializers import (
     OTPVerifySerializer,
     RequestOTPSerializer,
     UserModelSerializer,
-    APIKeySerializer,
-    APIKeyCreateSerializer,
+    SecretAPIKeySerializer,
+    SecretAPIKeyCreateSerializer,
+    PublicAPIKeySerializer,
+    PublicAPIKeyCreateSerializer
 )
 from .backends import APIKeyAuthentication
 from .utils import create_otp, send_invitation_email, send_otp
@@ -476,17 +478,17 @@ class TestAPIKeyView(APIView):
         return Response({"detail": "API Key authentication successful."}, status=status.HTTP_200_OK)
 
 
-class APIKeyListCreateView(ListCreateAPIView):
+class SecretAPIKeyListCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
 
     def get_serializer_class(self):
         if self.request.method == "POST":
-            return APIKeyCreateSerializer
-        return APIKeySerializer
+            return SecretAPIKeyCreateSerializer
+        return SecretAPIKeySerializer
 
     def get_queryset(self):
         # Since an organization can only have one API key, this will return a list with one key or an empty list
-        return APIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
+        return SecretAPIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -510,11 +512,11 @@ class APIKeyListCreateView(ListCreateAPIView):
         self.perform_create(create_serializer)
         headers = self.get_success_headers(create_serializer.data)
 
-        # We use the APIKeySerializer to return the full data of the created key
-        read_serializer = APIKeySerializer(self.key_instance)
+        # We use the SecretAPIKeySerializer to return the full data of the created key
+        read_serializer = SecretAPIKeySerializer(self.key_instance)
         data = {"key": self.key, **read_serializer.data}
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
-    
+
     def perform_create(self, serializer):
         api_key = serializer.save()
         # The unhashed key is stored on the instance by the serializer.
@@ -523,19 +525,82 @@ class APIKeyListCreateView(ListCreateAPIView):
         self.key_instance = api_key
 
 
-class APIKeyDetailView(RetrieveUpdateDestroyAPIView):
+class SecretAPIKeyDetailView(RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
-    serializer_class = APIKeySerializer
+    serializer_class = SecretAPIKeySerializer
     lookup_field = "uuid"
     lookup_url_kwarg = "api_key_uuid"
 
     def get_queryset(self):
-        return APIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
+        return SecretAPIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
+
+
+class PublicAPIKeyListCreateView(ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return PublicAPIKeyCreateSerializer
+        return PublicAPIKeySerializer
+
+    def get_queryset(self):
+        # Since an organization can only have one API key, this will return a list with one key or an empty list
+        return PublicAPIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if getattr(self, "swagger_fake_view", False):
+            return context
+        context["organization"] = get_object_or_404(
+            Organization, uuid=self.kwargs["org_uuid"]
+        )
+        return context
+
+    def perform_create(self, serializer):
+        api_key = serializer.save()
+        # The unhashed key is stored on the instance by the serializer.
+        # We add it to the response data here.
+        self.key = api_key.key
+
+    def create(self, request, *args, **kwargs):
+        # No request body is needed, so we pass an empty dictionary to the serializer
+        create_serializer = self.get_serializer(data={})
+        create_serializer.is_valid(raise_exception=True)
+        self.perform_create(create_serializer)
+        headers = self.get_success_headers(create_serializer.data)
+
+        # We use the PublicAPIKeySerializer to return the full data of the created key
+        read_serializer = PublicAPIKeySerializer(self.key_instance)
+        data = {"key": self.key, **read_serializer.data}
+        return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def perform_create(self, serializer):
+        api_key = serializer.save()
+        # The unhashed key is stored on the instance by the serializer.
+        # We add it to the response data here.
+        self.key = api_key.key
+        self.key_instance = api_key
+
+
+class PublicAPIKeyDetailView(RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
+    serializer_class = PublicAPIKeySerializer
+    lookup_field = "uuid"
+    lookup_url_kwarg = "api_key_uuid"
+
+    def get_queryset(self):
+        return PublicAPIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
 
 
 class ResetForgotPasswordView(GenericAPIView):

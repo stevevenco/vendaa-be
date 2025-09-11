@@ -167,8 +167,8 @@ class Invitation(TrackObjectStateMixin):
         return f"Invitation for {self.email} to {self.organization.name}"
 
 
-class APIKeyManager(models.Manager):
-    def create_key(self, *, organization: "Organization", created_by: "User") -> tuple["APIKey", str]:
+class SecretAPIKeyManager(models.Manager):
+    def create_key(self, *, organization: "Organization", created_by: "User") -> tuple["SecretAPIKey", str]:
         prefix = secrets.token_hex(4)
         key = secrets.token_hex(24)
         hashed_key = hashlib.sha256(key.encode()).hexdigest()
@@ -182,7 +182,7 @@ class APIKeyManager(models.Manager):
         return api_key, f"sk-{prefix}.{key}"
 
 
-class APIKey(TrackObjectStateMixin):
+class SecretAPIKey(TrackObjectStateMixin):
     organization = models.OneToOneField(
         Organization, on_delete=models.CASCADE, related_name="api_key"
     )
@@ -192,9 +192,38 @@ class APIKey(TrackObjectStateMixin):
     prefix = models.CharField(max_length=8, unique=True)
     hashed_key = models.CharField(max_length=128)
 
-    objects = APIKeyManager()
+    objects = SecretAPIKeyManager()
 
     def __str__(self):
-        return f"API Key for {self.organization.name}"
+        return f"Secret API Key for {self.organization.name}"
 
 
+class PublicAPIKeyManager(models.Manager):
+    def create_key(self, *, organization: "Organization", created_by: "User") -> tuple["PublicAPIKey", str]:
+        prefix = secrets.token_hex(4)
+        key = secrets.token_hex(24)
+        hashed_key = hashlib.sha256(key.encode()).hexdigest()
+
+        api_key = self.create(
+            organization=organization,
+            created_by=created_by,
+            prefix=prefix,
+            hashed_key=hashed_key,
+        )
+        return api_key, f"pk-{prefix}.{key}"
+
+
+class PublicAPIKey(TrackObjectStateMixin):
+    organization = models.OneToOneField(
+        Organization, on_delete=models.CASCADE, related_name="api_key"
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="api_keys"
+    )
+    prefix = models.CharField(max_length=8, unique=True)
+    hashed_key = models.CharField(max_length=128)
+
+    objects = PublicAPIKeyManager()
+
+    def __str__(self):
+        return f"Public API Key for {self.organization.name}"
