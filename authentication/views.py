@@ -504,6 +504,7 @@ class SecretAPIKeyListCreateView(ListCreateAPIView):
         # The unhashed key is stored on the instance by the serializer.
         # We add it to the response data here.
         self.key = api_key.key
+        self.key_instance = api_key
 
     def create(self, request, *args, **kwargs):
         # No request body is needed, so we pass an empty dictionary to the serializer
@@ -516,13 +517,6 @@ class SecretAPIKeyListCreateView(ListCreateAPIView):
         read_serializer = SecretAPIKeySerializer(self.key_instance)
         data = {"key": self.key, **read_serializer.data}
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
-
-    def perform_create(self, serializer):
-        api_key = serializer.save()
-        # The unhashed key is stored on the instance by the serializer.
-        # We add it to the response data here.
-        self.key = api_key.key
-        self.key_instance = api_key
 
 
 class SecretAPIKeyDetailView(RetrieveUpdateDestroyAPIView):
@@ -566,6 +560,7 @@ class PublicAPIKeyListCreateView(ListCreateAPIView):
         # The unhashed key is stored on the instance by the serializer.
         # We add it to the response data here.
         self.key = api_key.key
+        self.key_instance = api_key
 
     def create(self, request, *args, **kwargs):
         # No request body is needed, so we pass an empty dictionary to the serializer
@@ -578,13 +573,6 @@ class PublicAPIKeyListCreateView(ListCreateAPIView):
         read_serializer = PublicAPIKeySerializer(self.key_instance)
         data = {"key": self.key, **read_serializer.data}
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
-
-    def perform_create(self, serializer):
-        api_key = serializer.save()
-        # The unhashed key is stored on the instance by the serializer.
-        # We add it to the response data here.
-        self.key = api_key.key
-        self.key_instance = api_key
 
 
 class PublicAPIKeyDetailView(RetrieveUpdateDestroyAPIView):

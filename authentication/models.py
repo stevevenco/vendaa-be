@@ -184,10 +184,10 @@ class SecretAPIKeyManager(models.Manager):
 
 class SecretAPIKey(TrackObjectStateMixin):
     organization = models.OneToOneField(
-        Organization, on_delete=models.CASCADE, related_name="api_key"
+        Organization, on_delete=models.CASCADE, related_name="secret_api_key"
     )
     created_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, related_name="api_keys"
+        User, on_delete=models.SET_NULL, null=True, related_name="secret_api_keys"
     )
     prefix = models.CharField(max_length=8, unique=True)
     hashed_key = models.CharField(max_length=128)
@@ -215,10 +215,10 @@ class PublicAPIKeyManager(models.Manager):
 
 class PublicAPIKey(TrackObjectStateMixin):
     organization = models.OneToOneField(
-        Organization, on_delete=models.CASCADE, related_name="api_key"
+        Organization, on_delete=models.CASCADE, related_name="public_api_key"
     )
     created_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, related_name="api_keys"
+        User, on_delete=models.SET_NULL, null=True, related_name="public_api_keys"
     )
     prefix = models.CharField(max_length=8, unique=True)
     hashed_key = models.CharField(max_length=128)

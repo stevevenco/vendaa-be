@@ -69,6 +69,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
             role="owner",
             invited_by=user  # Self-invited when creating organization
         )
+        SecretAPIKey.objects.create_key(organization=organization, created_by=user)
+        PublicAPIKey.objects.create_key(organization=organization, created_by=user)
         return organization
 
 
@@ -380,7 +382,7 @@ class PublicAPIKeySerializer(serializers.ModelSerializer):
         read_only_fields = ("uuid", "prefix", "created")
 
     def get_prefix(self, obj):
-        return f"sk-{obj.prefix}"
+        return f"pk-{obj.prefix}"
 
 
 class PublicAPIKeyCreateSerializer(serializers.ModelSerializer):
