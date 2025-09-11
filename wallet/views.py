@@ -43,8 +43,8 @@ class WalletBalanceView(APIView):
             cleaned_balance = external_balance_str.replace('₦', '').replace(',', '').strip()
             balance_decimal = Decimal(cleaned_balance)
 
-            # Update wallet if external balance is higher
-            if balance_decimal > wallet.available_balance:
+            # Update wallet if external balance is different
+            if balance_decimal != wallet.available_balance:
                 wallet.available_balance = balance_decimal
                 wallet.save()
 
@@ -132,6 +132,7 @@ class TransactionListView(APIView):
                 txn_body['amount'] = currency + f"{float(txn['amount']):.2f}"
                 txn_body['created_at'] = txn['creation_date']
                 txn_body['status'] = txn['status']
+                txn_body['event'] = txn['event']
                 serializer_data.append(txn_body)
                 # print(f"\n\ntxn_body: {txn_body}\n\n")
 

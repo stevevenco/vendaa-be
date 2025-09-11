@@ -168,7 +168,6 @@ def initiate_wallet_payment(wallet_id, amount):
     
     raise Exception('Failed to initiate payment: ' + str(response_data))
 
-
 def get_wallet_transaction_history(wallet_id):
     """
     Retrieves the transaction history for a wallet from Meter Services.
@@ -204,3 +203,42 @@ def get_wallet_transaction_history(wallet_id):
         return res_data
 
     raise Exception('Failed to fetch transactions: ' + str(response_data))
+
+
+def charge_wallet(wallet_id, amount, idempotency_key):
+    """
+    Charges a specified amount to a wallet.
+
+    Args:
+        wallet_id: The wallet ID to charge.
+        amount: The amount to charge.
+
+    Returns:
+        Dict with the result of the charge operation.
+
+    Raises:
+        Exception if the charge operation fails.
+    """
+    organization_id = Wallet.objects.get(wallet_id=wallet_id).reference.uuid
+    url = f'{settings.METER_SERVICES_URL}/api/method/meter_services.v1.wallet.charge_wallet'
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'token {settings.METER_SERVICES_TOKEN}'
+    }
+    data = {
+        "debit_party": str(wallet_id),
+        "credit_party": "_VNCA08836F",
+        "amount": float(amount),
+        # "charge_session_id": str(idempotency_key),
+        "debit_party_reference": str(organization_id),
+        "is_live": 0
+    }
+
+    response = requests.post(url, json=data, headers=headers)
+    response_data = response.json()
+
+    if response.status_code == 200 and response_data.get('status') == 'success':
+        return response_data['data']
+
+    raise Exception('Failed to charge wallet: ' + str(response_data))
+

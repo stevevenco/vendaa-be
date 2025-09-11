@@ -17,23 +17,33 @@ from typing import Literal
 
 import environ
 from pydantic_settings import BaseSettings
+from corsheaders.defaults import default_headers
 
 env = environ.Env()
 
 EnvironmentType = Literal["dev", "staging", "prod"]
+CreditWalletIDs = Literal["_VNCA08836F", "wallet_002"]
 
 
 class GeneralSettings(BaseSettings):
     DEBUG: bool = False
     SECRET_KEY: str
     ENVIRONMENT: EnvironmentType
+    IS_LIVE: bool
     METER_SERVICES_URL: str
     METER_SERVICES_TOKEN: str
+    CREDIT_WALLET_ID: CreditWalletIDs
 
 
 GENERAL_SETTINGS = GeneralSettings()
 METER_SERVICES_URL = GENERAL_SETTINGS.METER_SERVICES_URL
 METER_SERVICES_TOKEN = GENERAL_SETTINGS.METER_SERVICES_TOKEN
+# IS_LIVE = GENERAL_SETTINGS.IS_LIVE
+
+# if IS_LIVE:
+#     CREDIT_WALLET_ID = "_VNCA08836F"
+# else:
+#     CREDIT_WALLET_ID = "wallet_002"
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -179,6 +189,10 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "Idempotency-Key",
+]
 
 REST_USE_JWT = True
 

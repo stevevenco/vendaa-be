@@ -87,12 +87,14 @@ class GenerateMeterTokenView(APIView):
 
         try:
             # Debit the wallet using the ChargeService
+            print(f"\n\nAttempting to debit wallet {wallet.wallet_id} for amount {amount_to_charge} with idempotency key {idempotency_key}\n\n")
             transaction = ChargeService.debit_wallet(
-                wallet_id=wallet.uuid,
+                wallet=wallet,
                 amount=amount_to_charge,
                 reference=meter_number,
                 idempotency_key=idempotency_key
             )
+            print(f"\n\nTransaction result: {transaction}\n\n")
 
             if transaction.status != 'successful':
                 return Response({"detail": "Transaction failed or is a duplicate request."}, status=status.HTTP_400_BAD_REQUEST)
