@@ -168,16 +168,19 @@ class Invitation(TrackObjectStateMixin):
 
 
 class SecretAPIKeyManager(models.Manager):
-    def create_key(self, *, organization: "Organization", created_by: "User") -> tuple["SecretAPIKey", str]:
+    def create_key(self, *, organization: "Organization", created_by: "User", scopes: list[str] = None) -> tuple["SecretAPIKey", str]:
         prefix = secrets.token_hex(4)
         key = secrets.token_hex(24)
         hashed_key = hashlib.sha256(key.encode()).hexdigest()
+
+        scope_string = " ".join(scopes) if scopes else ""
 
         api_key = self.create(
             organization=organization,
             created_by=created_by,
             prefix=prefix,
             hashed_key=hashed_key,
+            scopes=scope_string
         )
         return api_key, f"sk-{prefix}.{key}"
 
@@ -191,24 +194,32 @@ class SecretAPIKey(TrackObjectStateMixin):
     )
     prefix = models.CharField(max_length=8, unique=True)
     hashed_key = models.CharField(max_length=128)
+    revoked = models.BooleanField(default=False)
+    scopes = models.TextField(blank=True, default="")
 
     objects = SecretAPIKeyManager()
+
+    def get_scopes(self) -> list[str]:
+        return self.scopes.split(" ") if self.scopes else []
 
     def __str__(self):
         return f"Secret API Key for {self.organization.name}"
 
 
 class PublicAPIKeyManager(models.Manager):
-    def create_key(self, *, organization: "Organization", created_by: "User") -> tuple["PublicAPIKey", str]:
+    def create_key(self, *, organization: "Organization", created_by: "User", scopes: list[str] = None) -> tuple["PublicAPIKey", str]:
         prefix = secrets.token_hex(4)
         key = secrets.token_hex(24)
         hashed_key = hashlib.sha256(key.encode()).hexdigest()
+
+        scope_string = " ".join(scopes) if scopes else ""
 
         api_key = self.create(
             organization=organization,
             created_by=created_by,
             prefix=prefix,
             hashed_key=hashed_key,
+            scopes=scope_string,
         )
         return api_key, f"pk-{prefix}.{key}"
 
@@ -222,8 +233,13 @@ class PublicAPIKey(TrackObjectStateMixin):
     )
     prefix = models.CharField(max_length=8, unique=True)
     hashed_key = models.CharField(max_length=128)
+    revoked = models.BooleanField(default=False)
+    scopes = models.TextField(blank=True, default="")
 
     objects = PublicAPIKeyManager()
+
+    def get_scopes(self) -> list[str]:
+        return self.scopes.split(" ") if self.scopes else []
 
     def __str__(self):
         return f"Public API Key for {self.organization.name}"

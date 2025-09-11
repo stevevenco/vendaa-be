@@ -67,10 +67,14 @@ class OrganizationSerializer(serializers.ModelSerializer):
             user=user,
             organization=organization,
             role="owner",
-            invited_by=user  # Self-invited when creating organization
+            invited_by=user,  # Self-invited when creating organization
         )
-        SecretAPIKey.objects.create_key(organization=organization, created_by=user)
-        PublicAPIKey.objects.create_key(organization=organization, created_by=user)
+        SecretAPIKey.objects.create_key(
+            organization=organization, created_by=user, scopes=["*"]
+        )
+        PublicAPIKey.objects.create_key(
+            organization=organization, created_by=user, scopes=["meters:read"]
+        )
         return organization
 
 
@@ -340,16 +344,24 @@ class ResetForgotPasswordSerializer(serializers.Serializer):
         return user
 
 
+class APIKeyRevokeSerializer(serializers.Serializer):
+    revoked = serializers.BooleanField()
+
+
 class SecretAPIKeySerializer(serializers.ModelSerializer):
     prefix = serializers.SerializerMethodField()
+    scopes = serializers.SerializerMethodField()
 
     class Meta:
         model = SecretAPIKey
-        fields = ("uuid", "prefix", "created")
-        read_only_fields = ("uuid", "prefix", "created")
+        fields = ("uuid", "prefix", "created", "revoked", "scopes")
+        read_only_fields = ("uuid", "prefix", "created", "scopes")
 
     def get_prefix(self, obj):
         return f"sk-{obj.prefix}"
+
+    def get_scopes(self, obj):
+        return obj.get_scopes()
 
 
 class SecretAPIKeyCreateSerializer(serializers.ModelSerializer):
@@ -360,12 +372,12 @@ class SecretAPIKeyCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         organization = self.context["organization"]
         user = self.context["request"].user
-        
+
         # If a key already exists for this organization, delete it
         SecretAPIKey.objects.filter(organization=organization).delete()
 
         api_key, key = SecretAPIKey.objects.create_key(
-            organization=organization, created_by=user
+            organization=organization, created_by=user, scopes=["*"]
         )
         # The unhashed key is returned to the user only once upon creation.
         # We add it to the instance so it can be returned by the view.
@@ -375,14 +387,18 @@ class SecretAPIKeyCreateSerializer(serializers.ModelSerializer):
 
 class PublicAPIKeySerializer(serializers.ModelSerializer):
     prefix = serializers.SerializerMethodField()
+    scopes = serializers.SerializerMethodField()
 
     class Meta:
         model = PublicAPIKey
-        fields = ("uuid", "prefix", "created")
-        read_only_fields = ("uuid", "prefix", "created")
+        fields = ("uuid", "prefix", "created", "revoked", "scopes")
+        read_only_fields = ("uuid", "prefix", "created", "scopes")
 
     def get_prefix(self, obj):
         return f"pk-{obj.prefix}"
+
+    def get_scopes(self, obj):
+        return obj.get_scopes()
 
 
 class PublicAPIKeyCreateSerializer(serializers.ModelSerializer):
@@ -398,7 +414,7 @@ class PublicAPIKeyCreateSerializer(serializers.ModelSerializer):
         PublicAPIKey.objects.filter(organization=organization).delete()
 
         api_key, key = PublicAPIKey.objects.create_key(
-            organization=organization, created_by=user
+            organization=organization, created_by=user, scopes=["meters:read"]
         )
         # The unhashed key is returned to the user only once upon creation.
         # We add it to the instance so it can be returned by the view.

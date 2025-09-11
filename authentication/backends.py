@@ -37,6 +37,9 @@ class SecretAPIKeyAuthentication(BaseAuthentication):
         except SecretAPIKey.DoesNotExist:
             raise AuthenticationFailed("Invalid Secret API Key.")
 
+        if api_key.revoked:
+            raise AuthenticationFailed("API Key has been revoked.")
+
         hashed_key = hashlib.sha256(key.encode()).hexdigest()
         if not hmac.compare_digest(hashed_key, api_key.hashed_key):
             raise AuthenticationFailed("Invalid Secret API Key.")
@@ -64,6 +67,9 @@ class PublicAPIKeyAuthentication(BaseAuthentication):
             api_key = PublicAPIKey.objects.get(prefix=prefix)
         except PublicAPIKey.DoesNotExist:
             raise AuthenticationFailed("Invalid Public API Key.")
+
+        if api_key.revoked:
+            raise AuthenticationFailed("API Key has been revoked.")
 
         hashed_key = hashlib.sha256(key.encode()).hexdigest()
         if not hmac.compare_digest(hashed_key, api_key.hashed_key):

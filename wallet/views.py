@@ -3,7 +3,6 @@ import json
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 
 from .serializers import (
@@ -12,9 +11,14 @@ from .serializers import (
 )
 from .models import Wallet
 from .utils import get_wallet_balance, initiate_wallet_payment, get_wallet_transaction_history
+from utils.permissions import (
+    IsOrganizationOwnerOrAdminOrHasSecretScope,
+    IsOrganizationMemberOrHasScope,
+)
 
 class CreateWalletView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOrganizationOwnerOrAdminOrHasSecretScope]
+    required_scopes = ["wallet:write"]
 
     def post(self, request):
         serializer = WalletCreateSerializer(data=request.data)
@@ -29,7 +33,8 @@ class CreateWalletView(APIView):
 
 
 class WalletBalanceView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOrganizationMemberOrHasScope]
+    required_scopes = ["wallet:read"]
 
     def get(self, request, organization_id):
         # Get the wallet for this organization
@@ -63,12 +68,12 @@ class WalletBalanceView(APIView):
             )
 
 class InitiatePaymentView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOrganizationOwnerOrAdminOrHasSecretScope]
+    required_scopes = ["wallet:write"]
 
     def get(self, request, organization_id):
         # Validate payment option
         payment_option = request.query_params.get('payment_option')
-        print(f"\n\npayment_option: {payment_option}\n\n")
         if payment_option not in ['online_checkout', 'bank_transfer']:
             return Response(
                 {'error': 'Invalid payment option. Must be either online_checkout or bank_transfer'},
@@ -111,18 +116,17 @@ class InitiatePaymentView(APIView):
 
 
 class TransactionListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOrganizationMemberOrHasScope]
+    required_scopes = ["wallet:read"]
 
     def get(self, request, organization_id):
         # Get the wallet for this organization
         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
-        print(f"\n\nwallet: {wallet}\n\n")
 
         try:
             # Get transaction history from meter services
             currency = "₦"
             transactions = get_wallet_transaction_history(wallet.wallet_id)
-            # print(f"\n\ntransactions: {transactions}\n\n")
 
             serializer_data = []
             for txn in transactions:
@@ -134,7 +138,6 @@ class TransactionListView(APIView):
                 txn_body['status'] = txn['status']
                 txn_body['event'] = txn['event']
                 serializer_data.append(txn_body)
-                # print(f"\n\ntxn_body: {txn_body}\n\n")
 
             # Serialize the transactions
             serializer = TransactionSerializer(serializer_data, many=True)
