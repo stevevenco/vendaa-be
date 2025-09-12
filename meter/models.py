@@ -32,3 +32,16 @@ class UtilityCost(TrackObjectStateMixin):
 
     def __str__(self):
         return f"{self.name} - {self.cost}"
+
+
+class UtilityVends(TrackObjectStateMixin):
+    meter = models.ForeignKey(Meter, on_delete=models.CASCADE, related_name='vends')
+    amount = models.DecimalField(max_digits=20, decimal_places=2)
+    units = models.DecimalField(max_digits=20, decimal_places=2)
+    utility_cost = models.ForeignKey(UtilityCost, on_delete=models.SET_NULL, null=True, related_name='vends')
+    vend_reference = models.CharField(max_length=100, unique=True)
+    status = models.CharField(max_length=20, default='pending')  # e.g., pending, successful, failed
+    initiated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='initiated_vends')
+
+    def __str__(self):
+        return f"Vend - {self.vend_reference} - {self.meter.meter_number} - {self.amount}"

@@ -11,6 +11,7 @@ from .serializers import (
     PaymentOptionSerializer, TransactionSerializer
 )
 from .models import Wallet
+from authentication.models import Organization
 from .utils import get_wallet_balance, initiate_wallet_payment, get_wallet_transaction_history
 
 class CreateWalletView(APIView):
@@ -38,9 +39,10 @@ class WalletBalanceView(APIView):
         try:
             # Get current balance from meter services
             external_balance_str = get_wallet_balance(wallet.wallet_id)
+            currency_symbol = external_balance_str.split()[0]
 
             # Clean up the balance string to decimal for comparison
-            cleaned_balance = external_balance_str.replace('₦', '').replace(',', '').strip()
+            cleaned_balance = external_balance_str.replace(currency_symbol, '').replace(',', '').strip()
             balance_decimal = Decimal(cleaned_balance)
 
             # Update wallet if external balance is different
@@ -49,8 +51,8 @@ class WalletBalanceView(APIView):
                 wallet.save()
 
             serializer = WalletBalanceSerializer({
-                'available_balance': f"₦{wallet.available_balance:,.2f}",
-                'ledger_balance': f"₦{wallet.ledger_balance:,.2f}",
+                'available_balance': f"{currency_symbol}{wallet.available_balance:,.2f}",
+                'ledger_balance': f"{currency_symbol}{wallet.ledger_balance:,.2f}",
                 'wallet_id': wallet.wallet_id,
                 'currency': wallet.currency
             })
@@ -120,7 +122,8 @@ class TransactionListView(APIView):
 
         try:
             # Get transaction history from meter services
-            currency = "₦"
+            org_currency = Organization.objects.get(uuid=organization_id).currency
+            currency = org_currency if org_currency else "₦"
             transactions = get_wallet_transaction_history(wallet.wallet_id)
             # print(f"\n\ntransactions: {transactions}\n\n")
 

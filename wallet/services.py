@@ -17,8 +17,9 @@ class ChargeService:
 
         # 2. Check for sufficient funds
         external_balance_str = get_wallet_balance(wallet.wallet_id)
+        currency_symbol = external_balance_str.split()[0]
         # Clean up the balance string to decimal for comparison
-        cleaned_balance = external_balance_str.replace('₦', '').replace(',', '').strip()
+        cleaned_balance = external_balance_str.replace(currency_symbol, '').replace(',', '').strip()
         balance_decimal = Decimal(cleaned_balance)
 
         print(f"\n\nOutside Lock: External Balance: {balance_decimal}, Amount to Debit: {amount}")
@@ -43,7 +44,8 @@ class ChargeService:
 
             # Re-check funds inside the transaction to be safe
             external_balance_str_re_check = get_wallet_balance(wallet_to_debit.wallet_id)
-            cleaned_balance_re_check = external_balance_str_re_check.replace('₦', '').replace(',', '').strip()
+            currency_symbol = external_balance_str_re_check.split()[0]
+            cleaned_balance_re_check = external_balance_str_re_check.replace(currency_symbol, '').replace(',', '').strip()
             balance_decimal_re_check = Decimal(cleaned_balance_re_check)
 
             print(f"\n\nInside Lock: External Balance: {balance_decimal_re_check}, Amount to Debit: {amount}")
