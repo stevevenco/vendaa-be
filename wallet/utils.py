@@ -3,6 +3,7 @@ from django.conf import settings
 
 from wallet.serializers import TransactionSerializer
 from .models import Wallet
+from authentication.models import Organization
 
 def create_wallet_for_organization(org):
     """
@@ -24,7 +25,7 @@ def create_wallet_for_organization(org):
     data = {
         "party_name": org.name,
         "reference": str(org.uuid),
-        "currency": "NGN",
+        "currency": str(org.currency),
         "wallet_type": "Meter Wallet",
         "is_live": 0,
     }
@@ -73,9 +74,9 @@ def get_wallet_for_organization(org):
     }
     params = {
         'wallet_type': "Meter Wallet",
-        'currency': "NGN",
+        'currency': str(org.currency),
         'reference': org.uuid,
-        'is_live': 0
+        'is_live': settings.IS_LIVE
     }
 
     response = requests.get(url, headers=headers, params=params)
@@ -121,7 +122,7 @@ def get_wallet_balance(wallet_id):
     }
     params = {
         'wallet_id': wallet_id,
-        'is_live': 0
+        'is_live': settings.IS_LIVE
     }
 
     response = requests.get(url, headers=headers, params=params)
@@ -157,7 +158,7 @@ def initiate_wallet_payment(wallet_id, amount):
         'wallet_id': wallet_id,
         'amount': amount,
         'redirect_url': settings.FRONTEND_URL,
-        'is_live': 0
+        'is_live': settings.IS_LIVE
     }
 
     response = requests.post(url, json=data, headers=headers)
@@ -186,11 +187,12 @@ def get_wallet_transaction_history(wallet_id):
         'Content-Type': 'application/json',
         'Authorization': f'token {settings.METER_SERVICES_TOKEN}'
     }
+    organization_currency = Organization.objects.get(wallets__wallet_id=wallet_id).currency
     params = {
         'party': wallet_id,
         'party_type': 'wallet',
-        'currency': 'NGN',
-        'is_live': 0
+        'currency': str(organization_currency),
+        'is_live': settings.IS_LIVE
     }
 
     response = requests.get(url, headers=headers, params=params)

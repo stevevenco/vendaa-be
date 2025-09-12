@@ -29,22 +29,21 @@ class GeneralSettings(BaseSettings):
     DEBUG: bool = False
     SECRET_KEY: str
     ENVIRONMENT: EnvironmentType
-    IS_LIVE: bool
+    IS_LIVE: int
     METER_SERVICES_URL: str
     METER_SERVICES_TOKEN: str
     CREDIT_WALLET_ID: CreditWalletIDs
+
+    @property
+    def CREDIT_WALLET_ID(self) -> CreditWalletIDs:
+        return "_VNCA08836F" if self.IS_LIVE else "wallet_002"
 
 
 GENERAL_SETTINGS = GeneralSettings()
 METER_SERVICES_URL = GENERAL_SETTINGS.METER_SERVICES_URL
 METER_SERVICES_TOKEN = GENERAL_SETTINGS.METER_SERVICES_TOKEN
-# IS_LIVE = GENERAL_SETTINGS.IS_LIVE
-
-# if IS_LIVE:
-#     CREDIT_WALLET_ID = "_VNCA08836F"
-# else:
-#     CREDIT_WALLET_ID = "wallet_002"
-
+IS_LIVE = GENERAL_SETTINGS.IS_LIVE
+CREDIT_WALLET_ID = GENERAL_SETTINGS.CREDIT_WALLET_ID
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
