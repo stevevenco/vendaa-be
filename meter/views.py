@@ -5,9 +5,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from decimal import Decimal
 
-from authentication.backends import APIKeyAuthentication
 from authentication.models import Organization
-from utils.permissions import IsOrganizationMember, IsOrganizationMemberOrAPIToken, IsReadOnlyOrAdmin
+from utils.permissions import IsOrganizationMember, IsReadOnlyOrAdmin
 from .models import Meter, UtilityCost
 from .serializers import MeterSerializer, UtilityCostSerializer
 from .token_serializers import GenerateTokenSerializer
@@ -41,8 +40,8 @@ class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class GenerateMeterTokenView(APIView):
-    permission_classes = [IsAuthenticated, IsOrganizationMemberOrAPIToken]
-    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsOrganizationMember]
+    # authentication_classes = [JWTAuthentication]
 
     def post(self, request, *args, **kwargs):
         serializer = GenerateTokenSerializer(data=request.data)

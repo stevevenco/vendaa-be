@@ -94,6 +94,7 @@ def generate_meter_token(token_type, token_data):
 
     try:
         response = requests.post(url, json=token_data, headers=headers)
+        print(f"\n\nResponse from meter service: {response.json()}\n\n")
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:

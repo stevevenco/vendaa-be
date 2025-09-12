@@ -6,7 +6,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from authentication.exceptions import InvalidOTP
 
-from .models import Invitation, Membership, Organization, User, OTP, SecretAPIKey, PublicAPIKey
+from .models import Invitation, Membership, Organization, User, OTP
 from .utils import verify_otp, hash_otp
 
 # from utils.serializers import BaseSerializer
@@ -69,8 +69,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
             role="owner",
             invited_by=user  # Self-invited when creating organization
         )
-        SecretAPIKey.objects.create_key(organization=organization, created_by=user)
-        PublicAPIKey.objects.create_key(organization=organization, created_by=user)
+
         return organization
 
 
@@ -338,69 +337,3 @@ class ResetForgotPasswordSerializer(serializers.Serializer):
             user.set_password(self.validated_data["new_password"])
             user.save()
         return user
-
-
-class SecretAPIKeySerializer(serializers.ModelSerializer):
-    prefix = serializers.SerializerMethodField()
-
-    class Meta:
-        model = SecretAPIKey
-        fields = ("uuid", "prefix", "created")
-        read_only_fields = ("uuid", "prefix", "created")
-
-    def get_prefix(self, obj):
-        return f"sk-{obj.prefix}"
-
-
-class SecretAPIKeyCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SecretAPIKey
-        fields = ()
-
-    def create(self, validated_data):
-        organization = self.context["organization"]
-        user = self.context["request"].user
-        
-        # If a key already exists for this organization, delete it
-        SecretAPIKey.objects.filter(organization=organization).delete()
-
-        api_key, key = SecretAPIKey.objects.create_key(
-            organization=organization, created_by=user
-        )
-        # The unhashed key is returned to the user only once upon creation.
-        # We add it to the instance so it can be returned by the view.
-        api_key.key = key
-        return api_key
-
-
-class PublicAPIKeySerializer(serializers.ModelSerializer):
-    prefix = serializers.SerializerMethodField()
-
-    class Meta:
-        model = PublicAPIKey
-        fields = ("uuid", "prefix", "created")
-        read_only_fields = ("uuid", "prefix", "created")
-
-    def get_prefix(self, obj):
-        return f"pk-{obj.prefix}"
-
-
-class PublicAPIKeyCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PublicAPIKey
-        fields = ()
-
-    def create(self, validated_data):
-        organization = self.context["organization"]
-        user = self.context["request"].user
-
-        # If a key already exists for this organization, delete it
-        PublicAPIKey.objects.filter(organization=organization).delete()
-
-        api_key, key = PublicAPIKey.objects.create_key(
-            organization=organization, created_by=user
-        )
-        # The unhashed key is returned to the user only once upon creation.
-        # We add it to the instance so it can be returned by the view.
-        api_key.key = key
-        return api_key
