@@ -7,6 +7,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from authentication.exceptions import InvalidOTP
 
 from .models import Invitation, Membership, Organization, User, OTP
+from countries.models import Country
 from .utils import verify_otp, hash_otp
 
 # from utils.serializers import BaseSerializer
@@ -52,14 +53,25 @@ class UserModelSerializer(serializers.ModelSerializer):
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
+    country = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        # allow_null=True,
+        # required=False,
+    )
     class Meta:
         model = Organization
-        fields = ["uuid", "name", "created_by", "created"]
-        read_only_fields = ["uuid", "created_by", "created"]
+        fields = ["uuid", "name", "created_by", "created", "country", "currency"]
+        read_only_fields = ["uuid", "created_by", "created", "currency"]
 
     @transaction.atomic
     def create(self, validated_data):
         user = self.context["request"].user
+        country = validated_data.get("country")
+        
+        # Automatically set the currency based on the selected country
+        if country:
+            validated_data["currency"] = country.currency
+
         organization = Organization.objects.create(
             created_by=user, **validated_data
         )

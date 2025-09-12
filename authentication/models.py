@@ -9,6 +9,7 @@ from django.contrib.auth.models import (
 )
 from django.db import models
 from django.utils import timezone
+from countries.models import Country
 
 # import argon2
 from utils.models import TrackObjectStateMixin
@@ -71,6 +72,11 @@ class Organization(TrackObjectStateMixin):
         null=True,
         related_name="owned_organizations",
     )
+    country = models.ForeignKey(
+        Country, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    currency = models.CharField(max_length=10, blank=True)
+
     def __str__(self):
         return self.name
 

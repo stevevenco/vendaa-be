@@ -93,6 +93,7 @@ CUSTOM_APPS = [
     "media",
     "wallet",
     "meter",
+    "countries",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + CUSTOM_APPS
