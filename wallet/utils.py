@@ -27,7 +27,7 @@ def create_wallet_for_organization(org):
         "reference": str(org.uuid),
         "currency": str(org.currency),
         "wallet_type": "Meter Wallet",
-        "is_live": 0,
+        "is_live": settings.IS_LIVE,
     }
 
     response = requests.post(url, json=data, headers=headers)
@@ -169,7 +169,7 @@ def initiate_wallet_payment(wallet_id, amount):
     
     raise Exception('Failed to initiate payment: ' + str(response_data))
 
-def get_wallet_transaction_history(wallet_id):
+def get_wallet_transaction_history(wallet_id, org_currency):
     """
     Retrieves the transaction history for a wallet from Meter Services.
     
@@ -187,11 +187,11 @@ def get_wallet_transaction_history(wallet_id):
         'Content-Type': 'application/json',
         'Authorization': f'token {settings.METER_SERVICES_TOKEN}'
     }
-    organization_currency = Organization.objects.get(wallets__wallet_id=wallet_id).currency
+
     params = {
         'party': wallet_id,
         'party_type': 'wallet',
-        'currency': str(organization_currency),
+        'currency': str(org_currency),
         'is_live': settings.IS_LIVE
     }
 
@@ -229,11 +229,11 @@ def charge_wallet(wallet_id, amount, idempotency_key):
     }
     data = {
         "debit_party": str(wallet_id),
-        "credit_party": "_VNCA08836F",
+        "credit_party": str(settings.CREDIT_WALLET_ID),
         "amount": float(amount),
         # "charge_session_id": str(idempotency_key),
         "debit_party_reference": str(organization_id),
-        "is_live": 0
+        "is_live": settings.IS_LIVE
     }
 
     response = requests.post(url, json=data, headers=headers)

@@ -51,4 +51,5 @@ class TransactionSerializer(serializers.Serializer):
     amount = serializers.CharField()
     # fee = serializers.DecimalField(max_digits=20, decimal_places=2)
     status = serializers.CharField()
+    event = serializers.CharField()
     created_at = serializers.DateTimeField()

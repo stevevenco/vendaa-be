@@ -124,8 +124,8 @@ class TransactionListView(APIView):
             # Get transaction history from meter services
             org_currency = Organization.objects.get(uuid=organization_id).currency
             currency = org_currency if org_currency else "₦"
-            transactions = get_wallet_transaction_history(wallet.wallet_id)
-            # print(f"\n\ntransactions: {transactions}\n\n")
+            transactions = get_wallet_transaction_history(wallet.wallet_id, org_currency)
+            print(f"\n\ntransactions: {transactions}\n\n")
 
             serializer_data = []
             for txn in transactions:
@@ -136,6 +136,7 @@ class TransactionListView(APIView):
                 txn_body['created_at'] = txn['creation_date']
                 txn_body['status'] = txn['status']
                 txn_body['event'] = txn['event']
+                print(f"\n\n Transaction: {txn_body}\n\n")
                 serializer_data.append(txn_body)
                 # print(f"\n\ntxn_body: {txn_body}\n\n")
 
