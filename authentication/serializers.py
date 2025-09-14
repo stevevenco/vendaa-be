@@ -27,6 +27,9 @@ class UserModelSerializer(serializers.ModelSerializer):
             "last_name",
             "phone_number",
             "organizations",
+            "is_active",
+            "is_staff",
+            "is_verified"
         ]
         extra_kwargs = {"password": {"write_only": True, "min_length": 8}}
 
