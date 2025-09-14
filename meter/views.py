@@ -103,18 +103,29 @@ class GenerateMeterTokenView(APIView):
         except (UtilityCost.DoesNotExist, Organization.DoesNotExist, Wallet.DoesNotExist, Meter.DoesNotExist) as e:
             return Response({"detail": f"Configuration or entity not found: {e}"}, status=status.HTTP_404_NOT_FOUND)
 
-        amount_to_charge = utility_cost.cost
         try:
+            amount_to_charge = utility_cost.cost  # default
             if token_type == 'credit':
                 utility_units = validated_data.get('utility_units')
-            if utility_units:
-                amount = Decimal(utility_units) * utility_cost.cost
-            else: amount = Decimal(validated_data.get('amount'))
-            if amount < utility_cost.cost:
-                raise serializers.ValidationError(f"Amount for credit token must be at least {utility_cost.cost}.")
-            amount_to_charge = amount
+                if utility_units:
+                    amount_to_charge = Decimal(utility_units * utility_cost.cost)
+                else:
+                    amount_to_charge = Decimal(validated_data.get('amount'))
+                if amount_to_charge < utility_cost.cost:
+                    raise serializers.ValidationError(
+                        f"Amount for credit token must be at least {utility_cost.cost}."
+                    )
+                validated_data['amount'] = amount_to_charge
+            else:
+                # for non-credit tokens, always use the base utility cost
+                amount_to_charge = utility_cost.cost
+
+
         except UtilityCost.DoesNotExist:
-            return Response({"detail": f"Utility cost configuration for '{token_type}' not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": f"Utility cost configuration for '{token_type}' not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         except serializers.ValidationError as e:
             return Response({"detail": e.detail}, status=status.HTTP_400_BAD_REQUEST)
 
