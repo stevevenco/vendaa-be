@@ -1,66 +1,73 @@
 import uuid
 from decimal import Decimal
 from django.db import transaction as db_transaction
-from .models import Wallet, Transaction
+from requests.exceptions import RequestException
+from wallet.models import Wallet, Transaction
+from wallet.utils import charge_wallet
+
+class InsufficientBalanceError(Exception):
+    def __init__(self, message="Insufficient balance", available_balance=None):
+        self.message = message
+        self.available_balance = available_balance
+        super().__init__(self.message)
 
 class ChargeService:
     @staticmethod
-    def debit_wallet(wallet_id: str, amount: Decimal, reference: str, idempotency_key: str = None):
+    def debit_wallet(wallet: Wallet, amount: Decimal, reference: str, idempotency_key: str = None):
         """
-        Debits a wallet for a given amount in an atomic and idempotent way.
+        Debits a wallet for a given amount.
+        This method should be called within a transaction.
         """
-        # 1. Idempotency Check
-        if idempotency_key:
-            if Transaction.objects.filter(idempotency_key=idempotency_key).exists():
-                return Transaction.objects.get(idempotency_key=idempotency_key)
+        # Idempotency Check
+        if idempotency_key and Transaction.objects.filter(idempotency_key=idempotency_key, status='successful').exists():
+            raise ValueError("Duplicate request: A successful transaction with this idempotency key already exists.")
+
+        # Create a transaction record
+        transaction = Transaction.objects.create(
+            wallet=wallet,
+            amount=amount,
+            transaction_type='purchase',
+            status='pending',
+            reference=reference,
+            idempotency_key=idempotency_key,
+            transaction_id=f"TXN-{uuid.uuid4().hex}"
+        )
 
         try:
-            wallet = Wallet.objects.get(uuid=wallet_id)
-        except Wallet.DoesNotExist:
-            raise ValueError("Wallet not found")
+            # Debit the wallet using the external service
+            charge_response = charge_wallet(wallet.wallet_id, float(amount), idempotency_key)
+            print(f"Charge Response: {charge_response}")
 
-        # 2. Check for sufficient funds
-        if wallet.available_balance < amount:
-            # Create a failed transaction for auditing purposes
-            Transaction.objects.create(
-                wallet=wallet,
-                amount=amount,
-                transaction_type='purchase',
-                status='failed',
-                reference=reference,
-                idempotency_key=idempotency_key,
-                transaction_id=f"TXN-{uuid.uuid4().hex}"
-            )
-            raise ValueError("Insufficient funds")
+            if charge_response.get("status") != "success":
+                err_type = charge_response.get("err_type")
+                print(f"Error Type: {err_type}")
+                if err_type == "insufficient-balance":
+                    # available_balance = charge_response.get("data", {}).get("available_balance")
+                    raise InsufficientBalanceError(
+                        message=charge_response.get("message"),
+                        # available_balance=available_balance
+                    )
+                    # raise ValueError(charge_response.get("message"))
+                else:
+                    raise ValueError(f"Failed to charge wallet: {charge_response.get('message')}")
 
-        with db_transaction.atomic():
-            # 3. Lock the wallet row for the duration of the transaction
-            wallet_to_debit = Wallet.objects.select_for_update().get(uuid=wallet_id)
+            # Update wallet balance and transaction status
+            wallet.available_balance -= amount
+            wallet.save()
 
-            # Re-check funds inside the transaction to be safe
-            if wallet_to_debit.available_balance < amount:
-                raise ValueError("Insufficient funds after lock")
-
-            # 4. Create a transaction record
-            transaction = Transaction.objects.create(
-                wallet=wallet_to_debit,
-                amount=amount,
-                transaction_type='purchase',
-                status='pending',
-                reference=reference,
-                idempotency_key=idempotency_key,
-                transaction_id=f"TXN-{uuid.uuid4().hex}"
-            )
-
-            # 5. Debit the wallet
-            wallet_to_debit.available_balance -= amount
-            wallet_to_debit.save()
-
-            # 6. Update the transaction status to successful
             transaction.status = 'successful'
             transaction.save()
 
             return transaction
+
+        except RequestException as e:
+            transaction.status = 'failed'
+            transaction.save()
+            raise ValueError(f"Network error while charging wallet: {e}")
+        except Exception as e:
+            transaction.status = 'failed'
+            transaction.save()
+            raise e
 
     @staticmethod
     def refund_wallet(original_transaction: Transaction):
