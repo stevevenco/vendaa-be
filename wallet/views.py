@@ -4,7 +4,12 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
 from django.shortcuts import get_object_or_404
+
+from authentication.api_key.authentication import APIKeyAuthentication
+from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, WalletFullPermission
 
 from .serializers import (
     WalletCreateSerializer, WalletSerializer, WalletBalanceSerializer,
@@ -29,9 +34,50 @@ class CreateWalletView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class WalletBalanceView(APIView):
-    permission_classes = [IsAuthenticated]
+# class WalletBalanceView(APIView):
+#     permission_classes = [IsAuthenticated]
 
+#     def get(self, request, organization_id):
+#         # Get the wallet for this organization
+#         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
+
+#         try:
+#             # Get current balance from meter services
+#             external_balance_str = get_wallet_balance(wallet.wallet_id)
+#             currency_symbol = external_balance_str.split()[0]
+
+#             # Clean up the balance string to decimal for comparison
+#             cleaned_balance = external_balance_str.replace(currency_symbol, '').replace(',', '').strip()
+#             balance_decimal = Decimal(cleaned_balance)
+
+#             # Update wallet if external balance is different
+#             if balance_decimal != wallet.available_balance:
+#                 wallet.available_balance = balance_decimal
+#                 wallet.save()
+
+#             serializer = WalletBalanceSerializer({
+#                 'available_balance': f"{currency_symbol}{wallet.available_balance:,.2f}",
+#                 'ledger_balance': f"{currency_symbol}{wallet.ledger_balance:,.2f}",
+#                 'wallet_id': wallet.wallet_id,
+#                 'currency': wallet.currency
+#             })
+#             return Response(serializer.data, status=status.HTTP_200_OK)
+
+#         except Exception as e:
+#             return Response(
+#                 {'error': str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
+
+
+class WalletBalanceView(APIView):
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    permission_classes = [
+        IsAuthenticated,
+        WalletFullPermission,
+        IsOrganizationMemberOrAPIKey
+    ]
+    
     def get(self, request, organization_id):
         # Get the wallet for this organization
         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
@@ -63,6 +109,8 @@ class WalletBalanceView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
 
 class InitiatePaymentView(APIView):
     permission_classes = [IsAuthenticated]
@@ -112,8 +160,52 @@ class InitiatePaymentView(APIView):
             )
 
 
+# class TransactionListView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request, organization_id):
+#         # Get the wallet for this organization
+#         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
+#         print(f"\n\nwallet: {wallet}\n\n")
+
+#         try:
+#             # Get transaction history from meter services
+#             org_currency = Organization.objects.get(uuid=organization_id).currency
+#             currency = org_currency if org_currency else "₦"
+#             transactions = get_wallet_transaction_history(wallet.wallet_id, org_currency)
+#             print(f"\n\ntransactions: {transactions}\n\n")
+
+#             serializer_data = []
+#             for txn in transactions:
+#                 txn_body = {}
+#                 txn_body['title'] = txn['title']
+#                 txn_body['transaction_id'] = txn['transaction_id']
+#                 txn_body['amount'] = currency + f"{float(txn['amount']):.2f}"
+#                 txn_body['created_at'] = txn['creation_date']
+#                 txn_body['status'] = txn['status']
+#                 txn_body['event'] = txn['event']
+#                 print(f"\n\n Transaction: {txn_body}\n\n")
+#                 serializer_data.append(txn_body)
+#                 # print(f"\n\ntxn_body: {txn_body}\n\n")
+
+#             # Serialize the transactions
+#             serializer = TransactionSerializer(serializer_data, many=True)
+#             return Response(serializer.data, status=status.HTTP_200_OK)
+
+#         except Exception as e:
+#             return Response(
+#                 {'error': str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
+
+
 class TransactionListView(APIView):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    permission_classes = [
+        IsAuthenticated,
+        WalletFullPermission,
+        IsOrganizationMemberOrAPIKey
+    ]
 
     def get(self, request, organization_id):
         # Get the wallet for this organization
@@ -149,3 +241,5 @@ class TransactionListView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+

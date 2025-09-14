@@ -21,6 +21,8 @@ from .views import (
     VerifyOTPView,
 )
 
+from authentication.api_key.urls import urlpatterns as api_key_urls
+
 urlpatterns = [
     # ----- AUTHENTICATION ------ #
     path("register/", UserCreateView.as_view(), name="register"),
@@ -66,9 +68,9 @@ urlpatterns = [
     ),
 
     # ----- INVITATION ------ #
-    path("invitations/", ListInvitationsView.as_view(), name="invitation_list"),
+    path("organizations/<uuid:org_uuid>/invitations/", ListInvitationsView.as_view(), name="invitation_list"),
     path("invites/verify/", VerifyInviteView.as_view(), name="invite_verification"),
     path("invites/accept/", AcceptInviteView.as_view(), name="invite_acceptance"),
     path("invites/<uuid:invitation_id>/cancel/", CancelInviteView.as_view(), name="cancel_invite"),
     path("invites/<uuid:invitation_id>/decline/", DeclineInviteView.as_view(), name="decline_invite"),
-]
+] + api_key_urls

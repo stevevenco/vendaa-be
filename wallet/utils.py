@@ -231,7 +231,6 @@ def charge_wallet(wallet_id, amount, idempotency_key):
         "debit_party": str(wallet_id),
         "credit_party": str(settings.CREDIT_WALLET_ID),
         "amount": float(amount),
-        # "charge_session_id": str(idempotency_key),
         "debit_party_reference": str(organization_id),
         "is_live": settings.IS_LIVE
     }
@@ -241,6 +240,10 @@ def charge_wallet(wallet_id, amount, idempotency_key):
 
     if response.status_code == 200 and response_data.get('status') == 'success':
         return response_data['data']
+    print(f"\n\nresponse_data: {response_data}\n\n")
 
-    raise Exception('Failed to charge wallet: ' + str(response_data))
+    # raise Exception(response_data)
+    error_response = {"err_type": response_data.get('data').get('err_type'), "message": response_data.get('message')}
+    print(f"\n\nError Response: {error_response}")
+    return error_response
 

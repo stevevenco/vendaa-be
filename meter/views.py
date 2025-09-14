@@ -3,9 +3,12 @@ from rest_framework import generics, status, serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db import transaction as db_transaction
 from decimal import Decimal
 
+from authentication.api_key.authentication import APIKeyAuthentication
+from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, MetersFullPermission, MetersReadPermission
 from authentication.models import Organization
 from utils.permissions import IsOrganizationMember, IsReadOnlyOrAdmin
 from .models import Meter, UtilityCost, UtilityVend
@@ -15,9 +18,34 @@ from .utils import generate_meter_token
 from wallet.models import Wallet
 from wallet.services import ChargeService, InsufficientBalanceError
 
+# class MeterListCreateView(generics.ListCreateAPIView):
+#     serializer_class = MeterSerializer
+#     permission_classes = [IsAuthenticated, IsOrganizationMember]
+
+#     def get_queryset(self):
+#         return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
+
+#     def get_serializer_context(self):
+#         context = super().get_serializer_context()
+#         context['request'] = self.request
+#         context['organization'] = Organization.objects.get(uuid=self.kwargs['org_uuid'])
+#         return context
+    
+
 class MeterListCreateView(generics.ListCreateAPIView):
     serializer_class = MeterSerializer
-    permission_classes = [IsAuthenticated, IsOrganizationMember]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    
+    def get_permissions(self):
+        """Dynamic permissions based on request method and authentication"""
+        if self.request.method == 'GET':
+            # Read-only access for both public and secret keys
+            permission_classes = [IsAuthenticated, MetersReadPermission, IsOrganizationMemberOrAPIKey]
+        else:
+            # Write access only for secret keys and JWT users
+            permission_classes = [IsAuthenticated, MetersFullPermission, IsOrganizationMemberOrAPIKey]
+        
+        return [permission() for permission in permission_classes]
 
     def get_queryset(self):
         return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
@@ -31,9 +59,20 @@ class MeterListCreateView(generics.ListCreateAPIView):
 
 class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MeterSerializer
-    permission_classes = [IsAuthenticated, IsOrganizationMember]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
     lookup_field = 'uuid'
     lookup_url_kwarg = 'meter_uuid'
+    
+    def get_permissions(self):
+        """Dynamic permissions based on request method"""
+        if self.request.method == 'GET':
+            # Read access for both public and secret keys
+            permission_classes = [IsAuthenticated, MetersReadPermission, IsOrganizationMemberOrAPIKey]
+        else:
+            # Write/Delete access only for secret keys and JWT users
+            permission_classes = [IsAuthenticated, MetersFullPermission, IsOrganizationMemberOrAPIKey]
+
+        return [permission() for permission in permission_classes]
 
     def get_queryset(self):
         return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
@@ -65,11 +104,19 @@ class GenerateMeterTokenView(APIView):
             return Response({"detail": f"Configuration or entity not found: {e}"}, status=status.HTTP_404_NOT_FOUND)
 
         amount_to_charge = utility_cost.cost
-        if token_type == 'credit':
-            amount = Decimal(validated_data.get('amount', 0))
+        try:
+            if token_type == 'credit':
+                utility_units = validated_data.get('utility_units')
+            if utility_units:
+                amount = Decimal(utility_units) * utility_cost.cost
+            else: amount = Decimal(validated_data.get('amount'))
             if amount < utility_cost.cost:
                 raise serializers.ValidationError(f"Amount for credit token must be at least {utility_cost.cost}.")
             amount_to_charge = amount
+        except UtilityCost.DoesNotExist:
+            return Response({"detail": f"Utility cost configuration for '{token_type}' not found."}, status=status.HTTP_404_NOT_FOUND)
+        except serializers.ValidationError as e:
+            return Response({"detail": e.detail}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             with db_transaction.atomic():
@@ -86,7 +133,10 @@ class GenerateMeterTokenView(APIView):
                     status='pending'
                 )
 
-                # 1. Charge the wallet
+                # 1. Generate the token
+                token_response = generate_meter_token(token_type, validated_data, meter)
+
+                # 2. Charge the wallet
                 transaction = ChargeService.debit_wallet(
                     wallet=locked_wallet,
                     amount=amount_to_charge,
@@ -95,9 +145,6 @@ class GenerateMeterTokenView(APIView):
                 )
                 utility_vend.transaction = transaction
                 utility_vend.save()
-
-                # 2. Generate the token
-                token_response = generate_meter_token(token_type, validated_data)
 
                 # Process response and save token
                 if token_type == 'kct':
@@ -118,9 +165,7 @@ class GenerateMeterTokenView(APIView):
 
         except InsufficientBalanceError as e:
             return Response({
-                "message": e.message,
-                "data": {"err_type": "insufficient-balance", "available_balance": e.available_balance},
-                "status": "failed"
+                "detail": e.message,
             }, status=status.HTTP_402_PAYMENT_REQUIRED)
 
         except serializers.ValidationError as e:

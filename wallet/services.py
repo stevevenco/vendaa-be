@@ -36,15 +36,18 @@ class ChargeService:
         try:
             # Debit the wallet using the external service
             charge_response = charge_wallet(wallet.wallet_id, float(amount), idempotency_key)
+            print(f"Charge Response: {charge_response}")
 
             if charge_response.get("status") != "success":
-                err_type = charge_response.get("data", {}).get("err_type")
+                err_type = charge_response.get("err_type")
+                print(f"Error Type: {err_type}")
                 if err_type == "insufficient-balance":
-                    available_balance = charge_response.get("data", {}).get("available_balance")
+                    # available_balance = charge_response.get("data", {}).get("available_balance")
                     raise InsufficientBalanceError(
                         message=charge_response.get("message"),
-                        available_balance=available_balance
+                        # available_balance=available_balance
                     )
+                    # raise ValueError(charge_response.get("message"))
                 else:
                     raise ValueError(f"Failed to charge wallet: {charge_response.get('message')}")
 

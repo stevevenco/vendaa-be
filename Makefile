@@ -58,3 +58,6 @@ testcase:
 
 up-d:
 	@docker compose up -d
+
+test-smtp:
+	@docker compose run --rm app python -c "import socket; socket.create_connection(('smtp.gmail.com', 465), timeout=5); print('Connection OK')"
