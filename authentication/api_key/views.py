@@ -78,7 +78,7 @@ class APIKeyDetailView(generics.RetrieveUpdateDestroyAPIView):
     
     serializer_class = APIKeySerializer
     permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdminOrAPIKey]
-    lookup_field = 'id'
+    lookup_field = 'uuid'
     
     def get_queryset(self):
         org_uuid = self.kwargs['org_uuid']
@@ -149,7 +149,7 @@ def api_auth_me(request):
             'key_uuid': api_key.uuid,
             'key_type': api_key.key_type,
             'organization': {
-                'id': api_key.organization.uuid,
+                'uuid': api_key.organization.uuid,
                 'uuid': str(api_key.organization.uuid),
                 'name': api_key.organization.name,
             },
