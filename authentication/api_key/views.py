@@ -79,10 +79,10 @@ class APIKeyDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = APIKeySerializer
     permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdminOrAPIKey]
     lookup_field = 'uuid'
+    lookup_url_kwarg = 'key_uuid'
     
     def get_queryset(self):
-        org_uuid = self.kwargs['org_uuid']
-        return APIKey.objects.filter(organization__uuid=org_uuid)
+        return APIKey.objects.filter(organization__uuid=self.kwargs['org_uuid'])
     
     def update(self, request, *args, **kwargs):
         # Only allow updating name and is_active fields
