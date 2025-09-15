@@ -252,8 +252,6 @@ class AWSConfig(BaseSettings):
     AWS_S3_SIGNATURE_VERSION: str
 
 
-AWS_CONFIG = AWSConfig()
-
 FILE_UPLOAD_STORAGE = env("FILE_UPLOAD_STORAGE")
 
 if FILE_UPLOAD_STORAGE == "local":
@@ -262,6 +260,7 @@ if FILE_UPLOAD_STORAGE == "local":
     MEDIA_URL = f"/{MEDIA_ROOT_NAME}/"
 
 if FILE_UPLOAD_STORAGE == "s3":
+    AWS_CONFIG = AWSConfig()
     # Using django-storages
     # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"

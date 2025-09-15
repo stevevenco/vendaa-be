@@ -27,8 +27,17 @@ class APIKeyPermission(permissions.BasePermission):
         # Check organization context if present
         org_uuid = view.kwargs.get('org_uuid') or view.kwargs.get('uuid')
         if org_uuid:
+            try:
+                organization = Organization.objects.get(uuid=org_uuid)
+            except Organization.DoesNotExist:
+                return False
+
             # Ensure API key belongs to the organization being accessed
-            if str(api_key.organization.uuid) != str(org_uuid):
+            if api_key.organization != organization:
+                return False
+
+            # Ensure sandbox keys can only access sandbox organizations
+            if api_key.sandbox != organization.is_sandbox:
                 return False
                 
         return True

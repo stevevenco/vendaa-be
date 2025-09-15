@@ -16,7 +16,6 @@ psycopg2-binary = "*"
 django-anymail = {extras = ["mailgun"], version = "*"}
 pydantic = "*"
 pydantic-settings = "*"
-dj-database-url = "*"
 django-extensions = "*"
 pyotp = "*"
 mailtrap = "*"
@@ -28,12 +27,14 @@ django-filter = "*"
 imagekitio = "*"
 cloudinary = "*"
 whitenoise = "*"
+dj-database-url = "==0.5.0"
 
 [dev-packages]
 ruff = "*"
 pytest = "*"
 pytest-django = "*"
 django-extensions = "*"
+pytest-mock = "*"
 
 [requires]
 python_version = "3.12"

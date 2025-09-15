@@ -26,11 +26,8 @@ PAYSTACK_SECRET_KEY = env("PAYSTACK_TEST_SECRET_KEY")
 
 DATABASES = {
     "default": {
-        **dj_database_url.config(conn_max_age=600, conn_health_checks=True),
+        **dj_database_url.config(conn_max_age=600),
         "TIMEZONE": "UTC",
         "ATOMIC_REQUESTS": True,
-        "OPTIONS": {
-            "client_encoding": "UTF8",
-        },
     }
 }

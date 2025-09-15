@@ -18,6 +18,7 @@ from .serializers import (
 from .models import Wallet
 from authentication.models import Organization
 from .utils import get_wallet_balance, initiate_wallet_payment, get_wallet_transaction_history
+from .wallet_service import get_wallet_service
 
 class CreateWalletView(APIView):
     permission_classes = [IsAuthenticated]
@@ -140,8 +141,12 @@ class InitiatePaymentView(APIView):
         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
 
         try:
+            # Get wallet service
+            organization = wallet.reference
+            wallet_service = get_wallet_service(organization)
+
             # Get payment options
-            payment_options = initiate_wallet_payment(wallet.wallet_id, amount)
+            payment_options = wallet_service.top_up_wallet(wallet, amount)
 
             # Filter options based on payment type
             if payment_option == 'online_checkout':

@@ -66,6 +66,7 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
 
 class Organization(TrackObjectStateMixin):
     name = models.CharField(max_length=255)
+    is_sandbox = models.BooleanField(default=False)
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,

@@ -17,6 +17,8 @@ from .token_serializers import GenerateTokenSerializer
 from .utils import generate_meter_token
 from wallet.models import Wallet
 from wallet.services import ChargeService, InsufficientBalanceError
+from .meter_service import get_meter_service
+from wallet.wallet_service import get_wallet_service
 
 # class MeterListCreateView(generics.ListCreateAPIView):
 #     serializer_class = MeterSerializer
@@ -144,11 +146,15 @@ class GenerateMeterTokenView(APIView):
                     status='pending'
                 )
 
-                # 1. Generate the token
-                token_response = generate_meter_token(token_type, validated_data, meter)
+                # 1. Get the meter service
+                meter_service = get_meter_service(organization)
 
-                # 2. Charge the wallet
-                transaction = ChargeService.debit_wallet(
+                # 2. Generate the token
+                token_response = meter_service.generate_token(token_type, validated_data, meter)
+
+                # 3. Charge the wallet
+                wallet_service = get_wallet_service(organization)
+                transaction = wallet_service.debit_wallet(
                     wallet=locked_wallet,
                     amount=amount_to_charge,
                     reference=f"VEND-{meter.meter_number}-{utility_vend.uuid}",
