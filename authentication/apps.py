@@ -8,3 +8,4 @@ class AuthenticationConfig(AppConfig):
     def ready(self):
         import authentication.api_key.signals  # noqa
         import wallet.signals  # noqa
+        import meter.signals # noqa

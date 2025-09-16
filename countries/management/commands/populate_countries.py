@@ -16,10 +16,11 @@ class Command(BaseCommand):
                 countries_data = data.get("response", {}).get("data", {})
                 for name, details in countries_data.items():
                     currency = details.get("currency")
+                    currency_symbol = details.get("currency_symbol")
                     if currency:
                         country, created = Country.objects.update_or_create(
                             name=name,
-                            defaults={'currency': currency}
+                            defaults={'currency': currency, 'currency_symbol': currency_symbol}
                         )
                         if created:
                             self.stdout.write(self.style.SUCCESS(f"Successfully created Country: {name}"))

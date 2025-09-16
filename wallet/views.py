@@ -12,12 +12,13 @@ from authentication.api_key.authentication import APIKeyAuthentication
 from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, WalletFullPermission
 
 from .serializers import (
-    WalletCreateSerializer, WalletSerializer, WalletBalanceSerializer,
+    SandboxTransactionSerializer, WalletCreateSerializer, WalletSerializer, WalletBalanceSerializer,
     PaymentOptionSerializer, TransactionSerializer
 )
 from .models import Wallet
 from authentication.models import Organization
-from .utils import get_wallet_balance, initiate_wallet_payment, get_wallet_transaction_history
+# from .meter_services_client import get_wallet_balance, initiate_wallet_payment, get_wallet_transaction_history
+from .wallet_service import get_wallet_service
 
 class CreateWalletView(APIView):
     permission_classes = [IsAuthenticated]
@@ -84,7 +85,9 @@ class WalletBalanceView(APIView):
 
         try:
             # Get current balance from meter services
-            external_balance_str = get_wallet_balance(wallet.wallet_id)
+            organization = wallet.reference
+            wallet_service = get_wallet_service(organization)
+            external_balance_str = wallet_service.get_wallet_balance(wallet)
             currency_symbol = external_balance_str.split()[0]
 
             # Clean up the balance string to decimal for comparison
@@ -140,8 +143,12 @@ class InitiatePaymentView(APIView):
         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
 
         try:
+            # Get wallet service
+            organization = wallet.reference
+            wallet_service = get_wallet_service(organization)
+
             # Get payment options
-            payment_options = initiate_wallet_payment(wallet.wallet_id, amount)
+            payment_options = wallet_service.top_up_wallet(wallet, amount)
 
             # Filter options based on payment type
             if payment_option == 'online_checkout':
@@ -160,45 +167,6 @@ class InitiatePaymentView(APIView):
             )
 
 
-# class TransactionListView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request, organization_id):
-#         # Get the wallet for this organization
-#         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
-#         print(f"\n\nwallet: {wallet}\n\n")
-
-#         try:
-#             # Get transaction history from meter services
-#             org_currency = Organization.objects.get(uuid=organization_id).currency
-#             currency = org_currency if org_currency else "₦"
-#             transactions = get_wallet_transaction_history(wallet.wallet_id, org_currency)
-#             print(f"\n\ntransactions: {transactions}\n\n")
-
-#             serializer_data = []
-#             for txn in transactions:
-#                 txn_body = {}
-#                 txn_body['title'] = txn['title']
-#                 txn_body['transaction_id'] = txn['transaction_id']
-#                 txn_body['amount'] = currency + f"{float(txn['amount']):.2f}"
-#                 txn_body['created_at'] = txn['creation_date']
-#                 txn_body['status'] = txn['status']
-#                 txn_body['event'] = txn['event']
-#                 print(f"\n\n Transaction: {txn_body}\n\n")
-#                 serializer_data.append(txn_body)
-#                 # print(f"\n\ntxn_body: {txn_body}\n\n")
-
-#             # Serialize the transactions
-#             serializer = TransactionSerializer(serializer_data, many=True)
-#             return Response(serializer.data, status=status.HTTP_200_OK)
-
-#         except Exception as e:
-#             return Response(
-#                 {'error': str(e)},
-#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-#             )
-
-
 class TransactionListView(APIView):
     authentication_classes = [APIKeyAuthentication, JWTAuthentication]
     permission_classes = [
@@ -210,30 +178,20 @@ class TransactionListView(APIView):
     def get(self, request, organization_id):
         # Get the wallet for this organization
         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
-        print(f"\n\nwallet: {wallet}\n\n")
+        # print(f"\n\nwallet: {wallet}\n\n")
 
         try:
             # Get transaction history from meter services
-            org_currency = Organization.objects.get(uuid=organization_id).currency
-            currency = org_currency if org_currency else "₦"
-            transactions = get_wallet_transaction_history(wallet.wallet_id, org_currency)
-            print(f"\n\ntransactions: {transactions}\n\n")
-
-            serializer_data = []
-            for txn in transactions:
-                txn_body = {}
-                txn_body['title'] = txn['title']
-                txn_body['transaction_id'] = txn['transaction_id']
-                txn_body['amount'] = currency + f"{float(txn['amount']):.2f}"
-                txn_body['created_at'] = txn['creation_date']
-                txn_body['status'] = txn['status']
-                txn_body['event'] = txn['event']
-                print(f"\n\n Transaction: {txn_body}\n\n")
-                serializer_data.append(txn_body)
-                # print(f"\n\ntxn_body: {txn_body}\n\n")
+            organization = Organization.objects.get(uuid=organization_id)
+            currency = organization.currency
+            wallet_service = get_wallet_service(organization)
+            transactions = wallet_service.get_wallet_transaction(wallet, currency)
 
             # Serialize the transactions
-            serializer = TransactionSerializer(serializer_data, many=True)
+            if organization.is_sandbox:
+                serializer = SandboxTransactionSerializer(transactions, many=True)
+            else:
+                serializer = TransactionSerializer(transactions, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:

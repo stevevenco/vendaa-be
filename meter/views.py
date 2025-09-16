@@ -14,23 +14,9 @@ from utils.permissions import IsOrganizationMember, IsReadOnlyOrAdmin
 from .models import Meter, UtilityCost, UtilityVend
 from .serializers import MeterSerializer, UtilityCostSerializer
 from .token_serializers import GenerateTokenSerializer
-from .utils import generate_meter_token
 from wallet.models import Wallet
-from wallet.services import ChargeService, InsufficientBalanceError
-
-# class MeterListCreateView(generics.ListCreateAPIView):
-#     serializer_class = MeterSerializer
-#     permission_classes = [IsAuthenticated, IsOrganizationMember]
-
-#     def get_queryset(self):
-#         return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
-
-#     def get_serializer_context(self):
-#         context = super().get_serializer_context()
-#         context['request'] = self.request
-#         context['organization'] = Organization.objects.get(uuid=self.kwargs['org_uuid'])
-#         return context
-    
+from .meter_service import get_meter_service
+from wallet.wallet_service import get_wallet_service, InsufficientBalanceError
 
 class MeterListCreateView(generics.ListCreateAPIView):
     serializer_class = MeterSerializer
@@ -144,11 +130,15 @@ class GenerateMeterTokenView(APIView):
                     status='pending'
                 )
 
-                # 1. Generate the token
-                token_response = generate_meter_token(token_type, validated_data, meter)
+                # 1. Get the meter service
+                meter_service = get_meter_service(organization)
 
-                # 2. Charge the wallet
-                transaction = ChargeService.debit_wallet(
+                # 2. Generate the token
+                token_response = meter_service.generate_token(token_type, validated_data, meter)
+
+                # 3. Charge the wallet
+                wallet_service = get_wallet_service(organization)
+                transaction = wallet_service.debit_wallet(
                     wallet=locked_wallet,
                     amount=amount_to_charge,
                     reference=f"VEND-{meter.meter_number}-{utility_vend.uuid}",

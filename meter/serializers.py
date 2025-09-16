@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Meter, UtilityCost
-from .utils import add_meter_to_service
+from .meter_service import get_meter_service
 
 class MeterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -39,8 +39,10 @@ class MeterSerializer(serializers.ModelSerializer):
             )
 
         try:
-            response_data = add_meter_to_service(meter_number)
-            
+            meter_service = get_meter_service(organization)
+            response_data = meter_service.add_meter(meter_number)
+            print(f"\n\n Response data: {response_data}\n\n")
+
             response = response_data.get('response', {})
             status = response.get('status')
             message = response.get('message')
@@ -55,6 +57,7 @@ class MeterSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"detail": f"Failed to add meter: {message}"})
 
         except Exception as e:
+            print(f"\n\n Exception: {e}\n\n")
             # raise serializers.ValidationError({"detail": str(e)})
             raise serializers.ValidationError({"detail": "Invalid meter number"})
 
