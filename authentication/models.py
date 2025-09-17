@@ -88,6 +88,11 @@ class Membership(TrackObjectStateMixin):
         ("owner", "Owner"),
         ("admin", "Admin"),
         ("member", "Member"),
+        ("auditor", "Auditor"),
+        ("finance_manager", "Finance Manager"),
+        ("operations_manager", "Operations Manager"),
+        ("support_agent", "Support Agent"),
+        ("developer", "Developer"),
     ]
 
     user = models.ForeignKey(

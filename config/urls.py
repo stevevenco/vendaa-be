@@ -29,7 +29,7 @@ urlpatterns = [
             [
                 path("auth/", include(auth_url)),
                 path("media/", include(media_url)),
-                path("wallet/", include(wallet_url)),
+                path("", include(wallet_url)),
                 path("", include(meter_url)),
             ]
         ),

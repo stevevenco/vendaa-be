@@ -8,9 +8,9 @@ from django.db import transaction as db_transaction
 from decimal import Decimal
 
 from authentication.api_key.authentication import APIKeyAuthentication
-from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, MetersFullPermission, MetersReadPermission
+from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, MetersFullPermission, MetersReadPermission, VendingFullPermission
 from authentication.models import Organization
-from utils.permissions import IsOrganizationMember, IsReadOnlyOrAdmin
+from utils.permissions import HasOrgPermission, IsOrganizationMember, IsReadOnlyOrAdmin
 from .models import Meter, UtilityCost, UtilityVend
 from .serializers import MeterSerializer, UtilityCostSerializer
 from .token_serializers import GenerateTokenSerializer
@@ -20,21 +20,32 @@ from wallet.wallet_service import get_wallet_service, InsufficientBalanceError
 
 class MeterListCreateView(generics.ListCreateAPIView):
     serializer_class = MeterSerializer
-    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
-    
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
+
     def get_permissions(self):
         """Dynamic permissions based on request method and authentication"""
         if self.request.method == 'GET':
             # Read-only access for both public and secret keys
-            permission_classes = [IsAuthenticated, MetersReadPermission, IsOrganizationMemberOrAPIKey]
+            permission_classes = [
+                IsAuthenticated,
+                MetersReadPermission,
+                HasOrgPermission("meter", "read")
+            ]
         else:
             # Write access only for secret keys and JWT users
-            permission_classes = [IsAuthenticated, MetersFullPermission, IsOrganizationMemberOrAPIKey]
-        
+            permission_classes = [
+                IsAuthenticated,
+                MetersFullPermission,
+                HasOrgPermission("meter", "write")
+            ]
+
         return [permission() for permission in permission_classes]
 
     def get_queryset(self):
-        return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
+        return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid']).order_by('-created')
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -45,18 +56,29 @@ class MeterListCreateView(generics.ListCreateAPIView):
 
 class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MeterSerializer
-    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
     lookup_field = 'uuid'
     lookup_url_kwarg = 'meter_uuid'
-    
+
     def get_permissions(self):
         """Dynamic permissions based on request method"""
         if self.request.method == 'GET':
             # Read access for both public and secret keys
-            permission_classes = [IsAuthenticated, MetersReadPermission, IsOrganizationMemberOrAPIKey]
+            permission_classes = [
+                IsAuthenticated,
+                MetersReadPermission,
+                HasOrgPermission("meter", "read"),
+            ]
         else:
             # Write/Delete access only for secret keys and JWT users
-            permission_classes = [IsAuthenticated, MetersFullPermission, IsOrganizationMemberOrAPIKey]
+            permission_classes = [
+                IsAuthenticated,
+                MetersFullPermission,
+                HasOrgPermission("meter", "write"),
+            ]
 
         return [permission() for permission in permission_classes]
 
@@ -65,7 +87,11 @@ class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class GenerateMeterTokenView(APIView):
-    permission_classes = [IsAuthenticated, IsOrganizationMember]
+    permission_classes = [
+            IsAuthenticated,
+            VendingFullPermission,
+            HasOrgPermission('vending', 'write')
+        ]
 
     def post(self, request, *args, **kwargs):
         serializer = GenerateTokenSerializer(data=request.data)
