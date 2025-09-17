@@ -9,8 +9,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.shortcuts import get_object_or_404
 
 from authentication.api_key.authentication import APIKeyAuthentication
-from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, TransactionFullPermission, TransactionReadPermission, WalletFullPermission
-from utils.permissions import HasOrgPermission
+from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, WalletFullPermission
 
 from .serializers import (
     SandboxTransactionSerializer, WalletCreateSerializer, WalletSerializer, WalletBalanceSerializer,
@@ -22,15 +21,7 @@ from authentication.models import Organization
 from .wallet_service import get_wallet_service
 
 class CreateWalletView(APIView):
-    authentication_classes = [
-        APIKeyAuthentication,
-        JWTAuthentication
-    ]
-    permission_classes = [
-        IsAuthenticated,
-        WalletFullPermission,
-        HasOrgPermission('wallet', 'write')
-    ]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = WalletCreateSerializer(data=request.data)
@@ -44,17 +35,50 @@ class CreateWalletView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+# class WalletBalanceView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request, organization_id):
+#         # Get the wallet for this organization
+#         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
+
+#         try:
+#             # Get current balance from meter services
+#             external_balance_str = get_wallet_balance(wallet.wallet_id)
+#             currency_symbol = external_balance_str.split()[0]
+
+#             # Clean up the balance string to decimal for comparison
+#             cleaned_balance = external_balance_str.replace(currency_symbol, '').replace(',', '').strip()
+#             balance_decimal = Decimal(cleaned_balance)
+
+#             # Update wallet if external balance is different
+#             if balance_decimal != wallet.available_balance:
+#                 wallet.available_balance = balance_decimal
+#                 wallet.save()
+
+#             serializer = WalletBalanceSerializer({
+#                 'available_balance': f"{currency_symbol}{wallet.available_balance:,.2f}",
+#                 'ledger_balance': f"{currency_symbol}{wallet.ledger_balance:,.2f}",
+#                 'wallet_id': wallet.wallet_id,
+#                 'currency': wallet.currency
+#             })
+#             return Response(serializer.data, status=status.HTTP_200_OK)
+
+#         except Exception as e:
+#             return Response(
+#                 {'error': str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
+
+
 class WalletBalanceView(APIView):
-    authentication_classes = [
-        APIKeyAuthentication,
-        JWTAuthentication
-    ]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
     permission_classes = [
         IsAuthenticated,
         WalletFullPermission,
-        HasOrgPermission('wallet', 'read')
+        IsOrganizationMemberOrAPIKey
     ]
-
+    
     def get(self, request, organization_id):
         # Get the wallet for this organization
         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
@@ -92,15 +116,7 @@ class WalletBalanceView(APIView):
 
 
 class InitiatePaymentView(APIView):
-    authentication_classes = [
-        APIKeyAuthentication,
-        JWTAuthentication
-    ]
-    permission_classes = [
-        IsAuthenticated,
-        WalletFullPermission,
-        HasOrgPermission('wallet', 'write')
-    ]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, organization_id):
         # Validate payment option
@@ -152,23 +168,12 @@ class InitiatePaymentView(APIView):
 
 
 class TransactionListView(APIView):
-    authentication_classes = [
-        APIKeyAuthentication,
-        JWTAuthentication
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    permission_classes = [
+        IsAuthenticated,
+        WalletFullPermission,
+        IsOrganizationMemberOrAPIKey
     ]
-    # permission_classes = [
-    #     IsAuthenticated,
-    #     TransactionReadPermission,
-    #     HasOrgPermission('transaction', 'read')
-    # ]
-
-    def get_permissions(self):
-        permission_classes = [
-            IsAuthenticated,
-            TransactionReadPermission,
-            HasOrgPermission('transaction', 'read')
-        ]
-        return [permission() for permission in permission_classes]
 
     def get(self, request, organization_id):
         # Get the wallet for this organization

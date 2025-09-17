@@ -43,19 +43,14 @@ class APIKeyPermission(permissions.BasePermission):
         return True
 
 
-class MetersFullPermission(APIKeyPermission):
-    """Permission for full meters access"""
-    required_scope = 'meters:full'
-
-
 class MetersReadPermission(APIKeyPermission):
     """Permission for meters read-only access"""
     required_scope = 'meters:read'
 
 
-class VendingFullPermission(APIKeyPermission):
+class MetersFullPermission(APIKeyPermission):
     """Permission for full meters access"""
-    required_scope = 'vending:full'
+    required_scope = 'meters:full'
 
 
 class OrganizationsFullPermission(APIKeyPermission):
@@ -68,16 +63,6 @@ class OrganizationsReadPermission(APIKeyPermission):
     required_scope = 'organizations:read'
 
 
-class MembershipFullPermission(APIKeyPermission):
-    """Permission for full organizations access"""
-    required_scope = 'membership:full'
-
-
-class MembershipReadPermission(APIKeyPermission):
-    """Permission for full organizations access"""
-    required_scope = 'membership:read'
-
-
 class AuthReadPermission(APIKeyPermission):
     """Permission for auth read access"""
     required_scope = 'auth:read'
@@ -88,29 +73,9 @@ class InvitationsFullPermission(APIKeyPermission):
     required_scope = 'invitations:full'
 
 
-class InvitationsReadPermission(APIKeyPermission):
-    """Permission for full invitations access"""
-    required_scope = 'invitations:read'
-
 class WalletFullPermission(APIKeyPermission):
     """Permission for full wallet access"""
     required_scope = 'wallet:full'
-
-
-class TransactionFullPermission(APIKeyPermission):
-    """Permission for full wallet access"""
-    required_scope = 'transaction:full'
-
-
-class TransactionReadPermission(APIKeyPermission):
-    """Permission for full wallet access"""
-    required_scope = 'transaction:read'
-
-
-
-class WalletReadPermission(APIKeyPermission):
-    """Permission for full wallet access"""
-    required_scope = 'wallet:read'
 
 
 class APIKeysFullPermission(APIKeyPermission):
