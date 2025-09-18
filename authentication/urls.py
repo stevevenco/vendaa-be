@@ -52,7 +52,7 @@ urlpatterns = [
         name="organization_list_create",
     ),
     path(
-        "organizations/<uuid>/",
+        "organizations/<uuid:org_uuid>/",
         OrganizationUpdateView.as_view(),
         name="organization_update",
     ),

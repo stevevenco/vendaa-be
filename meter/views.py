@@ -8,11 +8,11 @@ from django.db import transaction as db_transaction
 from decimal import Decimal
 
 from authentication.api_key.authentication import APIKeyAuthentication
-from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, MetersFullPermission, MetersReadPermission, VendingFullPermission
+from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, MetersFullPermission, MetersReadPermission, VendingFullPermission, VendingReadPermission
 from authentication.models import Organization
 from utils.permissions import HasOrgPermission, IsOrganizationMember, IsReadOnlyOrAdmin
 from .models import Meter, UtilityCost, UtilityVend
-from .serializers import MeterSerializer, UtilityCostSerializer
+from .serializers import MeterSerializer, UtilityCostSerializer, UtilityVendsSerializer
 from .token_serializers import GenerateTokenSerializer
 from wallet.models import Wallet
 from .meter_service import get_meter_service
@@ -153,7 +153,8 @@ class GenerateMeterTokenView(APIView):
                     utility_cost=utility_cost,
                     vend_reference=f"VEND-{uuid.uuid4().hex}",
                     initiated_by=request.user,
-                    status='pending'
+                    status='pending',
+                    organization=organization
                 )
 
                 # 1. Get the meter service
@@ -223,6 +224,28 @@ class UtilityCostUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return UtilityCost.objects.filter(uuid=self.kwargs['uuid'])
+
+    def get(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class UtilityVendsListView(generics.ListAPIView):
+    serializer_class = UtilityVendsSerializer
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
+    permission_classes = [
+        IsAuthenticated,
+        IsOrganizationMember,
+        VendingReadPermission,
+        HasOrgPermission('vending', 'read')
+    ]
+
+    def get_queryset(self):
+        return UtilityVend.objects.filter(organization__uuid=self.kwargs['org_uuid'])
 
     def get(self, request, *args, **kwargs):
         queryset = self.get_queryset()

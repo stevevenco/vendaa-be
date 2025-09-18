@@ -163,7 +163,7 @@ class AllowOnlyRetrieve(permissions.BasePermission):
 
 class OrganizationPermission(permissions.BasePermission):
     def get_org_uuid(self, request, view):
-        return view.kwargs.get("org_uuid") or request.data.get("organization")
+        return view.kwargs.get("org_uuid") or view.kwargs.get("organization_id") or request.data.get("organization")
 
     def get_membership(self, request, view):
         org_uuid = self.get_org_uuid(request, view)
@@ -197,6 +197,7 @@ class HasOrgPermission(OrganizationPermission):
         membership = self.get_membership(request, view)
         if not membership:
             return False
-        print(f"\n\nUser role: {membership.role}")
+        print(f"\n\nRequest URL: {request.path}")
+        print(f"User role: {membership.role}")
         print(f"Is user permitted: {membership.role in ROLE_PERMISSIONS.get(self.feature, {}).get(self.action, [])}\n\n")
         return membership.role in ROLE_PERMISSIONS.get(self.feature, {}).get(self.action, [])

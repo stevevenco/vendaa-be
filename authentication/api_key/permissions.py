@@ -25,7 +25,7 @@ class APIKeyPermission(permissions.BasePermission):
             return False
             
         # Check organization context if present
-        org_uuid = view.kwargs.get('org_uuid') or view.kwargs.get('uuid')
+        org_uuid = view.kwargs.get('org_uuid') or view.kwargs.get('organization_uuid') or view.kwargs.get('uuid')
         if org_uuid:
             try:
                 organization = Organization.objects.get(uuid=org_uuid)
@@ -56,6 +56,11 @@ class MetersReadPermission(APIKeyPermission):
 class VendingFullPermission(APIKeyPermission):
     """Permission for full meters access"""
     required_scope = 'vending:full'
+
+
+class VendingReadPermission(APIKeyPermission):
+    """Permission for full meters access"""
+    required_scope = 'vending:read'
 
 
 class OrganizationsFullPermission(APIKeyPermission):

@@ -121,6 +121,7 @@ ROLE_PERMISSIONS = {
             "finance_manager",
             "support_agent",
             "auditor",
+            "member"
         ],
         "write": [
             "owner",

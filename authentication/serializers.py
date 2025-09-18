@@ -70,7 +70,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = self.context["request"].user
         country = validated_data.get("country")
-        
+
         # Automatically set the currency based on the selected country
         if country:
             validated_data["currency"] = country.currency

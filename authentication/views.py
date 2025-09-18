@@ -75,15 +75,13 @@ class OrganizationListCreateView(ListCreateAPIView):
             # Read-only access for both public and secret keys
             permission_classes = [
                 IsAuthenticated,
-                OrganizationsReadPermission,
-                HasOrgPermission('organization', 'read')
+                OrganizationsFullPermission,
             ]
         else:
             # Write access only for secret keys and JWT users
             permission_classes = [
                 IsAuthenticated,
                 OrganizationsFullPermission,
-                HasOrgPermission('organization', 'write')
             ]
 
         return [permission() for permission in permission_classes]
@@ -114,6 +112,7 @@ class OrganizationUpdateView(RetrieveUpdateDestroyAPIView):
         HasOrgPermission('organization', 'write')
     ]
     lookup_field = 'uuid'
+    lookup_url_kwarg = "org_uuid"
 
     def get_queryset(self):
         if hasattr(self.request.user, 'is_api_key_user'):
@@ -233,7 +232,7 @@ class ListInvitationsView(GenericAPIView):
 
 
 class CancelInviteView(GenericAPIView):
-    """Cancel an invitation (only by organization admin/owner)"""
+    """Cancel an invitation (only by organization admin/owner/operations_manager)"""
     authentication_classes = [
         APIKeyAuthentication,
         JWTAuthentication
@@ -241,7 +240,7 @@ class CancelInviteView(GenericAPIView):
     permission_classes = [
         IsAuthenticated,
         InvitationsFullPermission,
-        HasOrgPermission('invitation', 'write')]
+    ]
     serializer_class = serializers.Serializer
 
     def post(self, request, invitation_id):
@@ -251,7 +250,11 @@ class CancelInviteView(GenericAPIView):
         if not Membership.objects.filter(
             user=request.user,
             organization=invitation.organization,
-            role__in=['admin', 'owner']
+            role__in=[
+                'admin',
+                'owner',
+                'operations_manager'
+                ]
         ).exists():
             return Response(
                 {"detail": "You don't have permission to cancel this invitation."},
@@ -466,7 +469,6 @@ class UserDetailView(GenericAPIView):
     serializer_class = UserModelSerializer
     permission_classes = [
         IsAuthenticated,
-        HasOrgPermission('profile', 'read')
     ]
 
     def get(self, request, *args, **kwargs):
@@ -480,7 +482,6 @@ class UserUpdateView(GenericAPIView):
     serializer_class = UserModelSerializer
     permission_classes = [
         IsAuthenticated,
-        HasOrgPermission('profile', 'write')
     ]
 
     def patch(self, request, *args, **kwargs):
@@ -551,7 +552,6 @@ class ChangePasswordView(GenericAPIView):
     serializer_class = ChangePasswordSerializer
     permission_classes = [
         IsAuthenticated,
-        HasOrgPermission('profile', 'write')
     ]
 
     def post(self, request, *args, **kwargs):
