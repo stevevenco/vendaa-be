@@ -10,6 +10,8 @@ from decimal import Decimal
 from authentication.api_key.authentication import APIKeyAuthentication
 from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, MetersFullPermission, MetersReadPermission, VendingFullPermission, VendingReadPermission
 from authentication.models import Organization
+from utils.get_token_flag import get_token_flag
+from utils.pagination import CustomPagination
 from utils.permissions import HasOrgPermission, IsOrganizationMember, IsReadOnlyOrAdmin
 from .models import Meter, UtilityCost, UtilityVend
 from .serializers import MeterSerializer, UtilityCostSerializer, UtilityVendsSerializer
@@ -24,6 +26,7 @@ class MeterListCreateView(generics.ListCreateAPIView):
         APIKeyAuthentication,
         JWTAuthentication
     ]
+    pagination_class = CustomPagination
 
     def get_permissions(self):
         """Dynamic permissions based on request method and authentication"""
@@ -128,6 +131,19 @@ class GenerateMeterTokenView(APIView):
                         f"Amount for credit token must be at least {utility_cost.cost}."
                     )
                 validated_data['amount'] = amount_to_charge
+            elif token_type == 'mgtk':
+                    operation = validated_data.get('operation')
+                    action = validated_data.get('action')
+                    get_token_amount = get_token_flag(operation, action)
+                    '''
+                    request_body = {
+                        "meter_number": "",
+                        "token_type": "mgtk",
+                        "operation": "Disconnect On Power Limit",
+                        "action": "Enable"
+                    }
+                    '''
+                    validated_data['amount'] = get_token_amount
             else:
                 # for non-credit tokens, always use the base utility cost
                 amount_to_charge = utility_cost.cost

@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.generics import ListAPIView
 
 from django.shortcuts import get_object_or_404
 
@@ -20,6 +21,8 @@ from .models import Wallet
 from authentication.models import Organization
 # from .meter_services_client import get_wallet_balance, initiate_wallet_payment, get_wallet_transaction_history
 from .wallet_service import get_wallet_service
+
+from utils.pagination import CustomPagination
 
 class CreateWalletView(APIView):
     authentication_classes = [
@@ -151,48 +154,44 @@ class InitiatePaymentView(APIView):
             )
 
 
-class TransactionListView(APIView):
+class TransactionListView(ListAPIView):
     authentication_classes = [
         APIKeyAuthentication,
-        JWTAuthentication
+        JWTAuthentication,
     ]
-    # permission_classes = [
-    #     IsAuthenticated,
-    #     TransactionReadPermission,
-    #     HasOrgPermission('transaction', 'read')
-    # ]
+    permission_classes = [
+        IsAuthenticated,
+        TransactionReadPermission,
+        HasOrgPermission('transaction', 'read'),
+    ]
+    pagination_class = CustomPagination
 
-    def get_permissions(self):
-        permission_classes = [
-            IsAuthenticated,
-            TransactionReadPermission,
-            HasOrgPermission('transaction', 'read')
-        ]
-        return [permission() for permission in permission_classes]
+    def get_queryset(self):
+        """
+        Return the queryset of transactions for the given organization.
+        """
+        organization_id = self.kwargs["organization_id"]
 
-    def get(self, request, organization_id):
         # Get the wallet for this organization
         wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
-        # print(f"\n\nwallet: {wallet}\n\n")
 
-        try:
-            # Get transaction history from meter services
-            organization = Organization.objects.get(uuid=organization_id)
-            currency = organization.currency
-            wallet_service = get_wallet_service(organization)
-            transactions = wallet_service.get_wallet_transaction(wallet, currency)
+        # Get organization + wallet service
+        organization = get_object_or_404(Organization, uuid=organization_id)
+        currency = organization.currency
+        wallet_service = get_wallet_service(organization)
 
-            # Serialize the transactions
-            if organization.is_sandbox:
-                serializer = SandboxTransactionSerializer(transactions, many=True)
-            else:
-                serializer = TransactionSerializer(transactions, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+        # Get transaction history from external service
+        transactions = wallet_service.get_wallet_transaction(wallet, currency)
 
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        # Store organization so we can use it later in serializer_class
+        self.organization = organization
 
+        return transactions
 
+    def get_serializer_class(self):
+        """
+        Dynamically pick serializer depending on sandbox flag.
+        """
+        if getattr(self, "organization", None) and self.organization.is_sandbox:
+            return SandboxTransactionSerializer
+        return TransactionSerializer

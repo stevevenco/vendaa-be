@@ -91,6 +91,20 @@ class ProductionMeterService(MeterService):
                 "use3kct": False,
                 "allow_ken_update": False,
             })
+        elif token_type == "mgtk":
+            token_data.update({
+                "token_type": "mse",
+                "subclass": 10,
+                "ea": 7,
+                "tct": 2,
+                "sgc": meter.sgc,
+                "krn": meter.key_revision_number,
+                "ti": meter.tariff_index,
+                "allow_krn_update": False,
+                "key_expiry_number": 255,
+                "use3kct": False,
+                "allow_ken_update": False,
+            })
 
         if "amount" in token_data:
             token_data["amount"] = float(token_data["amount"])

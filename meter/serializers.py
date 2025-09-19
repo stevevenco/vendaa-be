@@ -30,8 +30,10 @@ class MeterSerializer(serializers.ModelSerializer):
         """
         Validate meter number
         """
-        if not validate_meter_no(value):
-            raise serializers.ValidationError("Incorrect meter number.")
+        organization_is_sandbox = self.context['organization'].is_sandbox
+        if not organization_is_sandbox:
+            if not validate_meter_no(value):
+                raise serializers.ValidationError("Incorrect meter number.")
         return value
 
     def validate_tariff_index(self, value):

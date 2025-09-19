@@ -63,6 +63,13 @@ class MSETokenSerializer(BaseTokenSerializer):
     amount = serializers.IntegerField()
 
 
+class MGTTokenSerializer(BaseTokenSerializer):
+    meter_number = serializers.CharField()
+    token_type = serializers.CharField()
+    operation = serializers.CharField()
+    action = serializers.CharField()
+
+
 class GenerateTokenSerializer(serializers.Serializer):
     token_type = serializers.ChoiceField(choices=BaseTokenSerializer.TOKEN_TYPES)
 
@@ -78,6 +85,8 @@ class GenerateTokenSerializer(serializers.Serializer):
             serializer = ClearTamperTokenSerializer(data=data)
         elif token_type == 'mse':
             serializer = MSETokenSerializer(data=data)
+        elif token_type == 'mgtk':
+            serializer = MGTTokenSerializer(data=data)
         else:
             # For 'test' and 'ditk', we can use the base serializer if they don't have extra required fields
             # or create specific serializers if they do. For now, we'll just validate the base fields.

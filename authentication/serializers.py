@@ -35,14 +35,38 @@ class UserModelSerializer(serializers.ModelSerializer):
 
     def get_organizations(self, obj):
         memberships = obj.memberships.all()
-        return [
-            {
+        result = []
+
+        for membership in memberships:
+            body = {
                 "uuid": membership.organization.uuid,
                 "name": membership.organization.name,
                 "role": membership.role,
             }
-            for membership in memberships
-        ]
+
+            org_country = membership.organization.country
+            if org_country:
+                body["country"] = org_country.name
+                body["currency"] = org_country.currency_symbol
+            else:
+                body["country"] = "Unspecified"
+                body["currency"] = "Unspecified"
+
+            result.append(body)
+            print(f"\n Result: {result}\n")
+
+        return result
+
+        # return [
+        #     {
+        #         "uuid": membership.organization.uuid,
+        #         "name": membership.organization.name,
+        #         "country": str(org_country),
+        #         "currency": str(membership.organization.country.currency_symbol),
+        #         "role": membership.role,
+        #     }
+        #     for membership in memberships
+        # ]
 
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
