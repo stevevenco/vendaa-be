@@ -30,7 +30,7 @@ def add_meter_to_service(meter_number):
         raise serializers.ValidationError({"detail": f"Failed to connect to meter service: {e}"})
 
 
-def generate_meter_token(token_type, token_data):
+def generate_meter_token(token_type, token_data, meter):
     """
     Calls the external meter service to generate a token.
     """
@@ -44,9 +44,12 @@ def generate_meter_token(token_type, token_data):
         token_data["subclass"] = 2
         token_data["ea"] = 7
         token_data["tct"] = 2
-        token_data["sgc"] = 600675
-        token_data["krn"] = 2
-        token_data["ti"] = 10
+        token_data["sgc"] = meter.sgc
+        token_data["krn"] = meter.key_revision_number
+        token_data["ti"] = meter.tariff_index
+        # token_data["sgc"] = 600675
+        # token_data["krn"] = 2
+        # token_data["ti"] = 10
         token_data["allow_krn_update"] = False
         token_data["key_expiry_number"] = 255
         token_data["use3kct"] = False
@@ -55,23 +58,23 @@ def generate_meter_token(token_type, token_data):
         token_data["subclass"] = 2
         token_data["ea"] = 7
         token_data["tct"] = 2
-        token_data["sgc"] = 600675
-        token_data["krn"] = 2
-        token_data["ti"] = 10
+        token_data["sgc"] = meter.sgc
+        token_data["krn"] = meter.key_revision_number
+        token_data["ti"] = meter.tariff_index
         token_data["allow_krn_update"] = False
         token_data["key_expiry_number"] = 255
         token_data["allow_ken_update"] = False
-        token_data["to_sgc"] = 600675
-        token_data["to_krn"] = 2
-        token_data["to_ti"] = 12
+        token_data["to_sgc"] = meter.sgc
+        token_data["to_krn"] = meter.key_revision_number
+        token_data["to_ti"] = meter.tariff_index
     elif token_type == "clear_credit":
         token_data["token_type"] = "mse"
         token_data["subclass"] = 1
         token_data["ea"] = 7
         token_data["tct"] = 2
-        token_data["sgc"] = 600675
-        token_data["krn"] = 2
-        token_data["ti"] = 10
+        token_data["sgc"] = meter.sgc
+        token_data["krn"] = meter.key_revision_number
+        token_data["ti"] = meter.tariff_index
         token_data["allow_krn_update"] = False
         token_data["key_expiry_number"] = 255
         token_data["use3kct"] = False
@@ -81,9 +84,9 @@ def generate_meter_token(token_type, token_data):
         token_data["subclass"] = 5
         token_data["ea"] = 7
         token_data["tct"] = 2
-        token_data["sgc"] = 600675
-        token_data["krn"] = 2
-        token_data["ti"] = 10
+        token_data["sgc"] = meter.sgc
+        token_data["krn"] = meter.key_revision_number
+        token_data["ti"] = meter.tariff_index
         token_data["allow_krn_update"] = False
         token_data["key_expiry_number"] = 255
         token_data["use3kct"] = False
@@ -94,7 +97,9 @@ def generate_meter_token(token_type, token_data):
 
     try:
         response = requests.post(url, json=token_data, headers=headers)
+        print(f"\n\nMeter Service Response: {response.json()}\n\n")
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        raise serializers.ValidationError({"detail": f"Failed to connect to meter service: {e}"})
+        # raise serializers.ValidationError({"detail": f"Failed to connect to meter service: {e}"})
+        raise serializers.ValidationError(f"Failed to connect to meter service: {e}")

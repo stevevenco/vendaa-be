@@ -3,6 +3,7 @@ from django.conf import settings
 
 from wallet.serializers import TransactionSerializer
 from .models import Wallet
+from authentication.models import Organization
 
 def create_wallet_for_organization(org):
     """
@@ -24,9 +25,9 @@ def create_wallet_for_organization(org):
     data = {
         "party_name": org.name,
         "reference": str(org.uuid),
-        "currency": "NGN",
+        "currency": str(org.currency),
         "wallet_type": "Meter Wallet",
-        "is_live": 0,
+        "is_live": settings.IS_LIVE,
     }
 
     response = requests.post(url, json=data, headers=headers)
@@ -73,9 +74,9 @@ def get_wallet_for_organization(org):
     }
     params = {
         'wallet_type': "Meter Wallet",
-        'currency': "NGN",
+        'currency': str(org.currency),
         'reference': org.uuid,
-        'is_live': 0
+        'is_live': settings.IS_LIVE
     }
 
     response = requests.get(url, headers=headers, params=params)
@@ -121,7 +122,7 @@ def get_wallet_balance(wallet_id):
     }
     params = {
         'wallet_id': wallet_id,
-        'is_live': 0
+        'is_live': settings.IS_LIVE
     }
 
     response = requests.get(url, headers=headers, params=params)
@@ -157,7 +158,7 @@ def initiate_wallet_payment(wallet_id, amount):
         'wallet_id': wallet_id,
         'amount': amount,
         'redirect_url': settings.FRONTEND_URL,
-        'is_live': 0
+        'is_live': settings.IS_LIVE
     }
 
     response = requests.post(url, json=data, headers=headers)
@@ -168,8 +169,7 @@ def initiate_wallet_payment(wallet_id, amount):
     
     raise Exception('Failed to initiate payment: ' + str(response_data))
 
-
-def get_wallet_transaction_history(wallet_id):
+def get_wallet_transaction_history(wallet_id, org_currency):
     """
     Retrieves the transaction history for a wallet from Meter Services.
     
@@ -187,11 +187,12 @@ def get_wallet_transaction_history(wallet_id):
         'Content-Type': 'application/json',
         'Authorization': f'token {settings.METER_SERVICES_TOKEN}'
     }
+
     params = {
         'party': wallet_id,
         'party_type': 'wallet',
-        'currency': 'NGN',
-        'is_live': 0
+        'currency': str(org_currency),
+        'is_live': settings.IS_LIVE
     }
 
     response = requests.get(url, headers=headers, params=params)
@@ -204,3 +205,45 @@ def get_wallet_transaction_history(wallet_id):
         return res_data
 
     raise Exception('Failed to fetch transactions: ' + str(response_data))
+
+
+def charge_wallet(wallet_id, amount, idempotency_key):
+    """
+    Charges a specified amount to a wallet.
+
+    Args:
+        wallet_id: The wallet ID to charge.
+        amount: The amount to charge.
+
+    Returns:
+        Dict with the result of the charge operation.
+
+    Raises:
+        Exception if the charge operation fails.
+    """
+    organization_id = Wallet.objects.get(wallet_id=wallet_id).reference.uuid
+    url = f'{settings.METER_SERVICES_URL}/api/method/meter_services.v1.wallet.charge_wallet'
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'token {settings.METER_SERVICES_TOKEN}'
+    }
+    data = {
+        "debit_party": str(wallet_id),
+        "credit_party": str(settings.CREDIT_WALLET_ID),
+        "amount": float(amount),
+        "debit_party_reference": str(organization_id),
+        "is_live": settings.IS_LIVE
+    }
+
+    response = requests.post(url, json=data, headers=headers)
+    response_data = response.json()
+
+    if response.status_code == 200 and response_data.get('status') == 'success':
+        return response_data['data']
+    print(f"\n\nresponse_data: {response_data}\n\n")
+
+    # raise Exception(response_data)
+    error_response = {"err_type": response_data.get('data').get('err_type'), "message": response_data.get('message')}
+    print(f"\n\nError Response: {error_response}")
+    return error_response
+

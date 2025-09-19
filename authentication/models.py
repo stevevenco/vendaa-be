@@ -9,6 +9,7 @@ from django.contrib.auth.models import (
 )
 from django.db import models
 from django.utils import timezone
+from countries.models import Country
 
 # import argon2
 from utils.models import TrackObjectStateMixin
@@ -71,6 +72,11 @@ class Organization(TrackObjectStateMixin):
         null=True,
         related_name="owned_organizations",
     )
+    country = models.ForeignKey(
+        Country, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    currency = models.CharField(max_length=10, blank=True)
+
     def __str__(self):
         return self.name
 
@@ -166,35 +172,5 @@ class Invitation(TrackObjectStateMixin):
     def __str__(self):
         return f"Invitation for {self.email} to {self.organization.name}"
 
-
-class APIKeyManager(models.Manager):
-    def create_key(self, *, organization: "Organization", created_by: "User") -> tuple["APIKey", str]:
-        prefix = secrets.token_hex(4)
-        key = secrets.token_hex(24)
-        hashed_key = hashlib.sha256(key.encode()).hexdigest()
-
-        api_key = self.create(
-            organization=organization,
-            created_by=created_by,
-            prefix=prefix,
-            hashed_key=hashed_key,
-        )
-        return api_key, f"sk-{prefix}.{key}"
-
-
-class APIKey(TrackObjectStateMixin):
-    organization = models.OneToOneField(
-        Organization, on_delete=models.CASCADE, related_name="api_key"
-    )
-    created_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, related_name="api_keys"
-    )
-    prefix = models.CharField(max_length=8, unique=True)
-    hashed_key = models.CharField(max_length=128)
-
-    objects = APIKeyManager()
-
-    def __str__(self):
-        return f"API Key for {self.organization.name}"
 
 

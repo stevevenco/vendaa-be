@@ -6,7 +6,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from authentication.exceptions import InvalidOTP
 
-from .models import Invitation, Membership, Organization, User, OTP, APIKey
+from .models import Invitation, Membership, Organization, User, OTP
+from countries.models import Country
 from .utils import verify_otp, hash_otp
 
 # from utils.serializers import BaseSerializer
@@ -26,6 +27,9 @@ class UserModelSerializer(serializers.ModelSerializer):
             "last_name",
             "phone_number",
             "organizations",
+            "is_active",
+            "is_staff",
+            "is_verified"
         ]
         extra_kwargs = {"password": {"write_only": True, "min_length": 8}}
 
@@ -52,14 +56,25 @@ class UserModelSerializer(serializers.ModelSerializer):
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
+    country = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        # allow_null=True,
+        # required=False,
+    )
     class Meta:
         model = Organization
-        fields = ["uuid", "name", "created_by", "created"]
-        read_only_fields = ["uuid", "created_by", "created"]
+        fields = ["uuid", "name", "created_by", "created", "country", "currency"]
+        read_only_fields = ["uuid", "created_by", "created", "currency"]
 
     @transaction.atomic
     def create(self, validated_data):
         user = self.context["request"].user
+        country = validated_data.get("country")
+        
+        # Automatically set the currency based on the selected country
+        if country:
+            validated_data["currency"] = country.currency
+
         organization = Organization.objects.create(
             created_by=user, **validated_data
         )
@@ -69,6 +84,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
             role="owner",
             invited_by=user  # Self-invited when creating organization
         )
+
         return organization
 
 
@@ -336,36 +352,3 @@ class ResetForgotPasswordSerializer(serializers.Serializer):
             user.set_password(self.validated_data["new_password"])
             user.save()
         return user
-
-
-class APIKeySerializer(serializers.ModelSerializer):
-    prefix = serializers.SerializerMethodField()
-
-    class Meta:
-        model = APIKey
-        fields = ("uuid", "prefix", "created")
-        read_only_fields = ("uuid", "prefix", "created")
-
-    def get_prefix(self, obj):
-        return f"sk-{obj.prefix}"
-
-
-class APIKeyCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = APIKey
-        fields = ()
-
-    def create(self, validated_data):
-        organization = self.context["organization"]
-        user = self.context["request"].user
-        
-        # If a key already exists for this organization, delete it
-        APIKey.objects.filter(organization=organization).delete()
-        
-        api_key, key = APIKey.objects.create_key(
-            organization=organization, created_by=user
-        )
-        # The unhashed key is returned to the user only once upon creation.
-        # We add it to the instance so it can be returned by the view.
-        api_key.key = key
-        return api_key

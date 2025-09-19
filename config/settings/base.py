@@ -17,24 +17,33 @@ from typing import Literal
 
 import environ
 from pydantic_settings import BaseSettings
+from corsheaders.defaults import default_headers
 
 env = environ.Env()
 
 EnvironmentType = Literal["dev", "staging", "prod"]
+CreditWalletIDs = Literal["_VNCA08836F", "wallet_002"]
 
 
 class GeneralSettings(BaseSettings):
     DEBUG: bool = False
     SECRET_KEY: str
     ENVIRONMENT: EnvironmentType
+    IS_LIVE: int
     METER_SERVICES_URL: str
     METER_SERVICES_TOKEN: str
+    CREDIT_WALLET_ID: CreditWalletIDs
+
+    @property
+    def CREDIT_WALLET_ID(self) -> CreditWalletIDs:
+        return "_VNCA08836F" if self.IS_LIVE else "wallet_002"
 
 
 GENERAL_SETTINGS = GeneralSettings()
 METER_SERVICES_URL = GENERAL_SETTINGS.METER_SERVICES_URL
 METER_SERVICES_TOKEN = GENERAL_SETTINGS.METER_SERVICES_TOKEN
-
+IS_LIVE = GENERAL_SETTINGS.IS_LIVE
+CREDIT_WALLET_ID = GENERAL_SETTINGS.CREDIT_WALLET_ID
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -83,6 +92,7 @@ CUSTOM_APPS = [
     "media",
     "wallet",
     "meter",
+    "countries",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + CUSTOM_APPS
@@ -180,6 +190,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "Idempotency-Key",
+]
+
 REST_USE_JWT = True
 
 REST_FRAMEWORK = {
@@ -187,21 +201,12 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_AUTHENTICATION_CLASSES": (
+        "authentication.api_key.authentication.APIKeyAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ),
 }
 
-# REST_FRAMEWORK = {
-#     "DEFAULT_PERMISSION_CLASSES": (
-#         "rest_framework.permissions.IsAuthenticated",
-#     ),
-#     "DEFAULT_AUTHENTICATION_CLASSES": (
-#         "authentication.backends.APIKeyAuthentication",
-#         "rest_framework_simplejwt.authentication.JWTAuthentication",
-#         "rest_framework.authentication.SessionAuthentication",
-#     ),
-# }
 
 SIMPLE_JWT = {
     "USER_ID_FIELD": "pk",

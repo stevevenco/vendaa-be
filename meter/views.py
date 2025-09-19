@@ -1,24 +1,51 @@
+import uuid
 from rest_framework import generics, status, serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.db import transaction as db_transaction
 from decimal import Decimal
 
-from authentication.backends import APIKeyAuthentication
+from authentication.api_key.authentication import APIKeyAuthentication
+from authentication.api_key.permissions import IsOrganizationMemberOrAPIKey, MetersFullPermission, MetersReadPermission
 from authentication.models import Organization
-from utils.permissions import IsOrganizationMember, IsOrganizationMemberOrAPIToken, IsReadOnlyOrAdmin
-from .models import Meter, UtilityCost
+from utils.permissions import IsOrganizationMember, IsReadOnlyOrAdmin
+from .models import Meter, UtilityCost, UtilityVend
 from .serializers import MeterSerializer, UtilityCostSerializer
 from .token_serializers import GenerateTokenSerializer
 from .utils import generate_meter_token
-# from wallet.utils import charge_organization_wallet
 from wallet.models import Wallet
-from wallet.services import ChargeService
+from wallet.services import ChargeService, InsufficientBalanceError
+
+# class MeterListCreateView(generics.ListCreateAPIView):
+#     serializer_class = MeterSerializer
+#     permission_classes = [IsAuthenticated, IsOrganizationMember]
+
+#     def get_queryset(self):
+#         return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
+
+#     def get_serializer_context(self):
+#         context = super().get_serializer_context()
+#         context['request'] = self.request
+#         context['organization'] = Organization.objects.get(uuid=self.kwargs['org_uuid'])
+#         return context
+    
 
 class MeterListCreateView(generics.ListCreateAPIView):
     serializer_class = MeterSerializer
-    permission_classes = [IsAuthenticated, IsOrganizationMember]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    
+    def get_permissions(self):
+        """Dynamic permissions based on request method and authentication"""
+        if self.request.method == 'GET':
+            # Read-only access for both public and secret keys
+            permission_classes = [IsAuthenticated, MetersReadPermission, IsOrganizationMemberOrAPIKey]
+        else:
+            # Write access only for secret keys and JWT users
+            permission_classes = [IsAuthenticated, MetersFullPermission, IsOrganizationMemberOrAPIKey]
+        
+        return [permission() for permission in permission_classes]
 
     def get_queryset(self):
         return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
@@ -32,17 +59,27 @@ class MeterListCreateView(generics.ListCreateAPIView):
 
 class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MeterSerializer
-    permission_classes = [IsAuthenticated, IsOrganizationMember]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
     lookup_field = 'uuid'
     lookup_url_kwarg = 'meter_uuid'
+    
+    def get_permissions(self):
+        """Dynamic permissions based on request method"""
+        if self.request.method == 'GET':
+            # Read access for both public and secret keys
+            permission_classes = [IsAuthenticated, MetersReadPermission, IsOrganizationMemberOrAPIKey]
+        else:
+            # Write/Delete access only for secret keys and JWT users
+            permission_classes = [IsAuthenticated, MetersFullPermission, IsOrganizationMemberOrAPIKey]
+
+        return [permission() for permission in permission_classes]
 
     def get_queryset(self):
         return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
 
 
 class GenerateMeterTokenView(APIView):
-    permission_classes = [IsAuthenticated, IsOrganizationMemberOrAPIToken]
-    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsOrganizationMember]
 
     def post(self, request, *args, **kwargs):
         serializer = GenerateTokenSerializer(data=request.data)
@@ -60,81 +97,94 @@ class GenerateMeterTokenView(APIView):
 
         try:
             utility_cost = UtilityCost.objects.get(name=token_type)
-        except UtilityCost.DoesNotExist:
-            raise serializers.ValidationError(f"Cost for token type '{token_type}' is not configured.")
-
-        try:
             organization = Organization.objects.get(uuid=org_uuid)
             wallet = Wallet.objects.get(reference=organization)
-        except (Organization.DoesNotExist, Wallet.DoesNotExist):
-            return Response({"detail": "Organization or wallet not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        amount_to_charge = 0
-        if token_type == 'credit':
-            if 'utility_units' in validated_data:
-                amount = validated_data['utility_units'] * utility_cost.cost
-                validated_data['amount'] = Decimal(amount)
-                if amount < utility_cost.cost:
-                    raise serializers.ValidationError(f"Amount for credit token cannot be less than the cost of 1 unit ({utility_cost.cost}).")
-                amount_to_charge = amount
-            else:
-                amount = Decimal(validated_data.get('amount'))
-                if amount < utility_cost.cost:
-                    raise serializers.ValidationError(f"Amount for credit token cannot be less than the cost of 1 unit ({utility_cost.cost}).")
-                amount_to_charge = amount
-        else:
-            amount_to_charge = utility_cost.cost
+            meter = Meter.objects.get(meter_number=meter_number, organization=organization)
+        except (UtilityCost.DoesNotExist, Organization.DoesNotExist, Wallet.DoesNotExist, Meter.DoesNotExist) as e:
+            return Response({"detail": f"Configuration or entity not found: {e}"}, status=status.HTTP_404_NOT_FOUND)
 
         try:
-            # Debit the wallet using the ChargeService
-            transaction = ChargeService.debit_wallet(
-                wallet_id=wallet.uuid,
-                amount=amount_to_charge,
-                reference=meter_number,
-                idempotency_key=idempotency_key
-            )
-
-            if transaction.status != 'successful':
-                return Response({"detail": "Transaction failed or is a duplicate request."}, status=status.HTTP_400_BAD_REQUEST)
-
-        except ValueError as e:
-            # Handle insufficient funds and other value errors from ChargeService
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
-        except Exception as e:
-            # If token generation fails, refund the transaction
-            if 'transaction' in locals() and transaction.status == 'successful':
-                ChargeService.refund_wallet(transaction)
-            
-            return Response({"detail": f"An error occurred during token generation: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
-        try:
-            response_data = generate_meter_token(token_type, validated_data)
-
-            # charge_organization_wallet(organization, amount_to_charge, 'debit')
-
-            # Process the response based on token type
-            if token_type == 'kct':
-                processed_response = [
-                    {"description": item.get("description"), "token": item.get("tokenDec")}
-                    for item in response_data.get('data', {}).get('data', [])
-                ]
-            elif token_type in ['credit', 'clear_credit', 'clear_tamper']:
-                # Ensure data is not empty before accessing index 0
-                data_list = response_data.get('data', {}).get('data', [])
-                if data_list:
-                    processed_response = {"token": data_list[0].get("tokenDec")}
+            amount_to_charge = utility_cost.cost  # default
+            if token_type == 'credit':
+                utility_units = validated_data.get('utility_units')
+                if utility_units:
+                    amount_to_charge = Decimal(utility_units * utility_cost.cost)
                 else:
-                    processed_response = {"token": None}
+                    amount_to_charge = Decimal(validated_data.get('amount'))
+                if amount_to_charge < utility_cost.cost:
+                    raise serializers.ValidationError(
+                        f"Amount for credit token must be at least {utility_cost.cost}."
+                    )
+                validated_data['amount'] = amount_to_charge
             else:
-                processed_response = response_data
+                # for non-credit tokens, always use the base utility cost
+                amount_to_charge = utility_cost.cost
+
+
+        except UtilityCost.DoesNotExist:
+            return Response(
+                {"detail": f"Utility cost configuration for '{token_type}' not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except serializers.ValidationError as e:
+            return Response({"detail": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with db_transaction.atomic():
+                # Lock wallet for update
+                locked_wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
+
+                # Create a utility vend record
+                utility_vend = UtilityVend.objects.create(
+                    meter=meter,
+                    amount=amount_to_charge,
+                    utility_cost=utility_cost,
+                    vend_reference=f"VEND-{uuid.uuid4().hex}",
+                    initiated_by=request.user,
+                    status='pending'
+                )
+
+                # 1. Generate the token
+                token_response = generate_meter_token(token_type, validated_data, meter)
+
+                # 2. Charge the wallet
+                transaction = ChargeService.debit_wallet(
+                    wallet=locked_wallet,
+                    amount=amount_to_charge,
+                    reference=f"VEND-{meter.meter_number}-{utility_vend.uuid}",
+                    idempotency_key=idempotency_key
+                )
+                utility_vend.transaction = transaction
+                utility_vend.save()
+
+                # Process response and save token
+                if token_type == 'kct':
+                    tokens = [item.get("tokenDec") for item in token_response.get('data', {}).get('data', [])]
+                    utility_vend.token = ", ".join(tokens)
+                    processed_response = [{"description": item.get("description"), "token": item.get("tokenDec")} for item in token_response.get('data', {}).get('data', [])]
+                else:
+                    data_list = token_response.get('data', {}).get('data', [])
+                    token = data_list[0].get("tokenDec") if data_list else None
+                    utility_vend.token = token
+                    processed_response = {"token": token}
+
+                utility_vend.token_details = token_response
+                utility_vend.status = 'successful'
+                utility_vend.save()
 
             return Response(processed_response, status=status.HTTP_200_OK)
 
+        except InsufficientBalanceError as e:
+            return Response({
+                "detail": e.message,
+            }, status=status.HTTP_402_PAYMENT_REQUIRED)
+
+        except serializers.ValidationError as e:
+            return Response({"detail": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            # The atomic transaction will roll back all DB changes
+            return Response({"detail": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class UtilityCostListCreateView(generics.ListCreateAPIView):

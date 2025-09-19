@@ -14,12 +14,8 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from authentication.api_key.authentication import APIKeyAuthentication
-from authentication.api_key.permissions import InvitationsFullPermission, IsOrganizationMemberOrAPIKey, IsOrganizationOwnerOrAdminOrAPIKey, OrganizationsFullPermission, OrganizationsReadPermission, create_scoped_permission
-
-from .models import Membership, Organization, User, Invitation
+from .models import Membership, Organization, User, Invitation, SecretAPIKey, PublicAPIKey
 from .serializers import (
     CustomTokenObtainPairSerializer,
     ChangePasswordSerializer,
@@ -36,10 +32,19 @@ from .serializers import (
     OTPVerifySerializer,
     RequestOTPSerializer,
     UserModelSerializer,
+    SecretAPIKeySerializer,
+    SecretAPIKeyCreateSerializer,
+    PublicAPIKeySerializer,
+    PublicAPIKeyCreateSerializer
 )
+from .backends import APIKeyAuthentication
 from .utils import create_otp, send_invitation_email, send_otp
 
-from utils.permissions import IsOrganizationOwnerOrAdmin
+from utils.permissions import (
+    IsOrganizationOwnerOrAdmin,
+    HasSecretAPIScope,
+    HasPublicAPIScope,
+)
 
 
 class UserCreateView(CreateAPIView):
@@ -62,74 +67,36 @@ class UserCreateView(CreateAPIView):
         )
 
 
-# class OrganizationListCreateView(ListCreateAPIView):
-#     serializer_class = OrganizationSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def get_queryset(self):
-#         return Organization.objects.filter(memberships__user=self.request.user)
-
-#     def get_serializer_context(self):
-#         return {"request": self.request}
-
-
 class OrganizationListCreateView(ListCreateAPIView):
     serializer_class = OrganizationSerializer
-    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasSecretAPIScope]
 
     def get_permissions(self):
-        """Dynamic permissions based on request method and authentication"""
-        if self.request.method == 'GET':
-            # Read-only access for both public and secret keys
-            permission_classes = [IsAuthenticated, OrganizationsReadPermission]
+        if self.request.method == "POST":
+            self.required_scopes = ["orgs:write"]
         else:
-            # Write access only for secret keys and JWT users
-            permission_classes = [IsAuthenticated, OrganizationsFullPermission]
-        
-        return [permission() for permission in permission_classes]
+            self.required_scopes = ["orgs:read"]
+        return super().get_permissions()
 
     def get_queryset(self):
-        if hasattr(self.request.user, 'is_api_key_user'):
-            # API key users can only access their own organization
-            return Organization.objects.filter(uuid=self.request.user.organization.uuid)
-        else:
-            # JWT users see organizations they're members of
-            return Organization.objects.filter(
-                memberships__user=self.request.user
-            ).distinct()
-        
+        return Organization.objects.filter(memberships__user=self.request.user)
+
     def get_serializer_context(self):
         return {"request": self.request}
 
 
-# class OrganizationUpdateView(RetrieveUpdateDestroyAPIView):
-#     serializer_class = OrganizationUpdateSerializer
-#     permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
-#     lookup_field = "uuid"
-#     queryset = Organization.objects.all()
-
 class OrganizationUpdateView(RetrieveUpdateDestroyAPIView):
-    serializer_class = OrganizationSerializer
-    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
-    permission_classes = [
-        IsAuthenticated,
-        OrganizationsFullPermission,
-        IsOrganizationOwnerOrAdminOrAPIKey
-    ]
-    lookup_field = 'uuid'
-
-    def get_queryset(self):
-        if hasattr(self.request.user, 'is_api_key_user'):
-            return Organization.objects.filter(uuid=self.request.user.organization.uuid)
-        else:
-            return Organization.objects.filter(
-                memberships__user=self.request.user
-            ).distinct()
+    serializer_class = OrganizationUpdateSerializer
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin, HasSecretAPIScope]
+    required_scopes = ["orgs:write"]
+    lookup_field = "uuid"
+    queryset = Organization.objects.all()
 
 
 class OrganizationInviteView(CreateAPIView):
     serializer_class = InvitationCreateSerializer
-    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin, HasSecretAPIScope]
+    required_scopes = ["invitations:write"]
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -190,15 +157,11 @@ class ListInvitationsView(GenericAPIView):
     - 'sent': Shows invitations sent by organizations where user is admin/owner
     """
     serializer_class = InvitationDetailSerializer
-    permission_classes = [
-        IsAuthenticated,
-        InvitationsFullPermission,
-        # IsOrganizationOwnerOrAdminOrAPIKey
-    ]
+    permission_classes = [IsAuthenticated, HasSecretAPIScope]
+    required_scopes = ["invitations:read"]
 
     def get_queryset(self):
         invite_type = self.request.query_params.get('type', 'received')
-        org_uuid = self.kwargs.get('org_uuid')
         user = self.request.user
 
         if invite_type == 'sent':
@@ -208,8 +171,8 @@ class ListInvitationsView(GenericAPIView):
                 memberships__role__in=['admin', 'owner']
             )
             return Invitation.objects.filter(
-                organization__uuid=org_uuid,
-                status__in=['pending']  # Only show active invites
+                organization__in=admin_orgs,
+                status__in=['pending', 'declined']  # Only show active or declined invites
             ).order_by('-created')
         else:  # received
             return Invitation.objects.filter(
@@ -225,7 +188,8 @@ class ListInvitationsView(GenericAPIView):
 
 class CancelInviteView(GenericAPIView):
     """Cancel an invitation (only by organization admin/owner)"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasSecretAPIScope]
+    required_scopes = ["invitations:write"]
     serializer_class = serializers.Serializer
 
     def post(self, request, invitation_id):
@@ -255,12 +219,9 @@ class CancelInviteView(GenericAPIView):
 
 class DeclineInviteView(GenericAPIView):
     """Decline an invitation (only by invited user)"""
+    permission_classes = [IsAuthenticated, HasSecretAPIScope]
+    required_scopes = ["invitations:write"]
     serializer_class = serializers.Serializer
-    permission_classes = [
-        IsAuthenticated,
-        InvitationsFullPermission,
-        # IsOrganizationOwnerOrAdminOrAPIKey
-    ]
 
     def post(self, request, invitation_id):
         invitation = get_object_or_404(Invitation, token=invitation_id)
@@ -285,7 +246,8 @@ class DeclineInviteView(GenericAPIView):
 
 class AcceptInviteView(GenericAPIView):
     serializer_class = AcceptInviteSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasSecretAPIScope]
+    required_scopes = ["invitations:write"]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -311,13 +273,14 @@ class AcceptInviteView(GenericAPIView):
 
 
 class MemberListCreateView(ListCreateAPIView):
-    # permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
-    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
-    permission_classes = [
-        IsAuthenticated,
-        InvitationsFullPermission,
-        IsOrganizationOwnerOrAdminOrAPIKey
-    ]
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin, HasSecretAPIScope]
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            self.required_scopes = ["invitations:write"]
+        else:
+            self.required_scopes = ["orgs:read"]
+        return super().get_permissions()
 
     def get_serializer_class(self):
         if self.request.method == 'GET':
@@ -362,7 +325,8 @@ class MemberListCreateView(ListCreateAPIView):
 
 
 class MemberDetailView(RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin, HasSecretAPIScope]
+    required_scopes = ["orgs:write"]
     lookup_field = "uuid"
 
     def get_serializer_class(self):
@@ -439,7 +403,8 @@ class UserDetailView(GenericAPIView):
     """Generic View for retrieving user details"""
 
     serializer_class = UserModelSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasSecretAPIScope]
+    required_scopes = ["auth:me:read"]
 
     def get(self, request, *args, **kwargs):
         serializer = self.get_serializer(request.user)
@@ -529,6 +494,144 @@ class ChangePasswordView(GenericAPIView):
 
     def patch(self, request, *args, **kwargs):
         return self.post(request, *args, **kwargs)
+
+
+class TestAPIKeyView(APIView):
+    permission_classes = [IsAuthenticated, HasSecretAPIScope]
+    authentication_classes = [APIKeyAuthentication]
+    required_scopes = ["auth:me:read"]
+
+    def get(self, request, *args, **kwargs):
+        return Response({"detail": "API Key authentication successful."}, status=status.HTTP_200_OK)
+
+
+class SecretAPIKeyListCreateView(ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin, HasSecretAPIScope]
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            self.required_scopes = ["api-keys:write"]
+        else:
+            self.required_scopes = ["api-keys:read"]
+        return super().get_permissions()
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return SecretAPIKeyCreateSerializer
+        return SecretAPIKeySerializer
+
+    def get_queryset(self):
+        # Since an organization can only have one API key, this will return a list with one key or an empty list
+        return SecretAPIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if getattr(self, "swagger_fake_view", False):
+            return context
+        context["organization"] = get_object_or_404(
+            Organization, uuid=self.kwargs["org_uuid"]
+        )
+        return context
+
+    def perform_create(self, serializer):
+        api_key = serializer.save()
+        # The unhashed key is stored on the instance by the serializer.
+        # We add it to the response data here.
+        self.key = api_key.key
+        self.key_instance = api_key
+
+    def create(self, request, *args, **kwargs):
+        # No request body is needed, so we pass an empty dictionary to the serializer
+        create_serializer = self.get_serializer(data={})
+        create_serializer.is_valid(raise_exception=True)
+        self.perform_create(create_serializer)
+        headers = self.get_success_headers(create_serializer.data)
+
+        # We use the SecretAPIKeySerializer to return the full data of the created key
+        read_serializer = SecretAPIKeySerializer(self.key_instance)
+        data = {"key": self.key, **read_serializer.data}
+        return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class SecretAPIKeyDetailView(RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin, HasSecretAPIScope]
+    required_scopes = ["api-keys:write"]
+    serializer_class = SecretAPIKeySerializer
+    lookup_field = "uuid"
+    lookup_url_kwarg = "api_key_uuid"
+
+    def get_queryset(self):
+        return SecretAPIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+
+class PublicAPIKeyListCreateView(ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin, HasSecretAPIScope]
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            self.required_scopes = ["api-keys:write"]
+        else:
+            self.required_scopes = ["api-keys:read"]
+        return super().get_permissions()
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return PublicAPIKeyCreateSerializer
+        return PublicAPIKeySerializer
+
+    def get_queryset(self):
+        # Since an organization can only have one API key, this will return a list with one key or an empty list
+        return PublicAPIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if getattr(self, "swagger_fake_view", False):
+            return context
+        context["organization"] = get_object_or_404(
+            Organization, uuid=self.kwargs["org_uuid"]
+        )
+        return context
+
+    def perform_create(self, serializer):
+        api_key = serializer.save()
+        # The unhashed key is stored on the instance by the serializer.
+        # We add it to the response data here.
+        self.key = api_key.key
+        self.key_instance = api_key
+
+    def create(self, request, *args, **kwargs):
+        # No request body is needed, so we pass an empty dictionary to the serializer
+        create_serializer = self.get_serializer(data={})
+        create_serializer.is_valid(raise_exception=True)
+        self.perform_create(create_serializer)
+        headers = self.get_success_headers(create_serializer.data)
+
+        # We use the PublicAPIKeySerializer to return the full data of the created key
+        read_serializer = PublicAPIKeySerializer(self.key_instance)
+        data = {"key": self.key, **read_serializer.data}
+        return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class PublicAPIKeyDetailView(RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin, HasSecretAPIScope]
+    required_scopes = ["api-keys:write"]
+    serializer_class = PublicAPIKeySerializer
+    lookup_field = "uuid"
+    lookup_url_kwarg = "api_key_uuid"
+
+    def get_queryset(self):
+        return PublicAPIKey.objects.filter(organization__uuid=self.kwargs["org_uuid"])
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
 
 
 class ResetForgotPasswordView(GenericAPIView):

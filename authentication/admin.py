@@ -1,7 +1,8 @@
 from authentication.models import (
   OTP, Membership, Organization, User,
-  Invitation, APIKey
+  Invitation
   )
+from authentication.api_key.models import APIKey
 from config.admin import admin_site
 
 admin_site.register(User)
