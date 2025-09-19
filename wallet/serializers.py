@@ -4,16 +4,16 @@ from django.conf import settings
 
 from authentication.models import Organization
 from .models import Wallet
+from .wallet_service import get_wallet_service
 
 class WalletCreateSerializer(serializers.Serializer):
     organization_id = serializers.UUIDField()
 
     def create(self, validated_data):
-        from .utils import create_wallet_for_organization
-
         org = Organization.objects.get(uuid=validated_data['organization_id'])
+        wallet_service = get_wallet_service(org)
         try:
-            return create_wallet_for_organization(org)
+            return wallet_service.create_wallet(org)
         except Exception as e:
             raise serializers.ValidationError(str(e))
 
@@ -49,7 +49,21 @@ class TransactionSerializer(serializers.Serializer):
     transaction_id = serializers.CharField()
     title = serializers.CharField()
     amount = serializers.CharField()
-    # fee = serializers.DecimalField(max_digits=20, decimal_places=2)
     status = serializers.CharField()
     event = serializers.CharField()
     created_at = serializers.DateTimeField()
+
+
+class SandboxTransactionSerializer(serializers.Serializer):
+    transaction_id = serializers.CharField()
+    amount = serializers.DecimalField(max_digits=20, decimal_places=2)
+    status = serializers.CharField()
+    event = serializers.CharField()
+    created_at = serializers.DateTimeField(source="created")
+    title = serializers.SerializerMethodField()
+
+    def get_title(self, obj):
+        if hasattr(obj, "title") and obj.title:
+            return obj.title
+        return f"{obj.transaction_id}"
+

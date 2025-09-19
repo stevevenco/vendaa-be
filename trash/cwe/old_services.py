@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import transaction as db_transaction
 from requests.exceptions import RequestException
 from wallet.models import Wallet, Transaction
-from wallet.utils import charge_wallet
+from wallet.meter_services_client import charge_wallet
 
 class InsufficientBalanceError(Exception):
     def __init__(self, message="Insufficient balance", available_balance=None):

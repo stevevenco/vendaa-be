@@ -28,6 +28,7 @@ class APIKey(TrackObjectStateMixin):
     key_hash = models.CharField(max_length=128)  # Hashed version of the full key
     name = models.CharField(max_length=255, blank=True, null=True)  # Optional friendly name
     is_active = models.BooleanField(default=True)
+    sandbox = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     last_used_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(
@@ -88,7 +89,9 @@ class APIKey(TrackObjectStateMixin):
         key_string, key_bytes = cls.generate_key_pair()
         
         # Create key ID with appropriate prefix
-        prefix = 'sk-' if key_type == 'secret' else 'pk-'
+        env_prefix = 'test_' if organization.is_sandbox else 'live_'
+        key_prefix = 'sk_' if key_type == 'secret' else 'pk_'
+        prefix = f"{key_prefix}{env_prefix}"
         key_id = f"{prefix}{secrets.token_urlsafe(16)}"
         
         # Hash the full key for storage
@@ -102,7 +105,8 @@ class APIKey(TrackObjectStateMixin):
             key_id=key_id,
             key_hash=key_hash,
             name=name,
-            created_by=created_by
+            created_by=created_by,
+            sandbox=organization.is_sandbox
         )
         
         return api_key, full_key

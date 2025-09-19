@@ -45,6 +45,7 @@ class UtilityVend(TrackObjectStateMixin):
     token_details = models.JSONField(null=True, blank=True)
     status = models.CharField(max_length=20, default='pending')  # e.g., pending, successful, failed
     initiated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='initiated_vends')
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, related_name='organization_vends')
 
     def __str__(self):
         return f"Vend - {self.vend_reference} - {self.meter.meter_number} - {self.amount}"

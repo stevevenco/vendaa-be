@@ -11,7 +11,7 @@ from .serializers import MeterSerializer
 from .token_serializers import GenerateTokenSerializer
 from .utils import generate_meter_token
 from wallet.models import Wallet
-from wallet.services import ChargeService
+from wallet.old_services import ChargeService
 
 
 class GenerateMeterTokenView(APIView):

@@ -66,6 +66,8 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
 
 class Organization(TrackObjectStateMixin):
     name = models.CharField(max_length=255)
+    is_sandbox = models.BooleanField(default=True)
+    # ref_sandbox_org = models.UUIDField(null=True, blank=True)
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -86,6 +88,11 @@ class Membership(TrackObjectStateMixin):
         ("owner", "Owner"),
         ("admin", "Admin"),
         ("member", "Member"),
+        ("auditor", "Auditor"),
+        ("finance_manager", "Finance Manager"),
+        ("operations_manager", "Operations Manager"),
+        ("support_agent", "Support Agent"),
+        ("developer", "Developer"),
     ]
 
     user = models.ForeignKey(
