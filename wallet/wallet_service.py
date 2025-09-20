@@ -216,7 +216,7 @@ class SandboxWalletService(WalletService):
             raise ValueError("Duplicate request: A successful transaction with this idempotency key already exists.")
 
         transaction = Transaction.objects.create(
-            title="Debit",
+            title="Token Vend",
             event="Charge",
             wallet=wallet,
             amount=amount,

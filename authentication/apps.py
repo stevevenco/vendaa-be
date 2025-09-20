@@ -9,3 +9,4 @@ class AuthenticationConfig(AppConfig):
         import authentication.api_key.signals  # noqa
         import wallet.signals  # noqa
         import meter.signals # noqa
+        import meter.sandbox_signals # noqa

@@ -50,7 +50,7 @@ class Command(BaseCommand):
                             organization=org,
                             key_type='secret',
                             created_by=org.created_by,
-                            name='Default Secret Key'
+                            name='Secret Key'
                         )
                         self.stdout.write(
                             self.style.SUCCESS(f"Created secret key for '{org.name}': {secret_key}, secret_full: {secret_full}")
@@ -61,7 +61,7 @@ class Command(BaseCommand):
                             organization=org,
                             key_type='public',
                             created_by=org.created_by,
-                            name='Default Public Key'
+                            name='Public Key'
                         )
                         self.stdout.write(
                             self.style.SUCCESS(f"Created public key for '{org.name}': public_key: {public_key}, public_full: {public_full}")
