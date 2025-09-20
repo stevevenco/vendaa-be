@@ -10,7 +10,7 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         data = {country.name.lower(): str(country.uuid) for country in Country.objects.all()}
 
-        output_path = Path("countries.json")
+        output_path = Path("countries_staging.json")
         with output_path.open("w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
 
