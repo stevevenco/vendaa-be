@@ -29,6 +29,7 @@ def create_demo_meters(organization: Organization):
                     'sgc': '12345',
                     'tariff_index': '1',
                     'key_revision_number': '1',
+                    'is_sandbox': True,
                 }
             )
 
@@ -39,7 +40,7 @@ def _vend_sandbox_meter_token(organization: Organization, meter: Meter, month_ag
     try:
         token_type = 'credit'
         utility_cost = UtilityCost.objects.get(name=token_type)
-        wallet = Wallet.objects.get(reference=organization)
+        wallet = Wallet.objects.get(reference=organization, is_sandbox=True)
 
         amount_to_charge = Decimal(random.uniform(10, 100))
 
@@ -58,7 +59,8 @@ def _vend_sandbox_meter_token(organization: Organization, meter: Meter, month_ag
                 vend_reference=f"VEND-{uuid.uuid4().hex}",
                 initiated_by=None,  # No user in signal
                 status='pending',
-                organization=organization
+                organization=organization,
+                is_sandbox=True
             )
 
             # 1. Get the meter service
@@ -107,13 +109,13 @@ def generate_historical_sandbox_data(sender, instance, created, **kwargs):
     """
     if created and instance.is_sandbox and os.environ.get('PYTEST_RUNNING') != 'true':
         try:
-            meters = Meter.objects.filter(organization=instance)
+            meters = Meter.objects.filter(organization=instance, is_sandbox=True)
             if not meters.exists():
                 # This might happen if the demo meters are not created yet.
                 # The other signal should have already run.
                 # We can call it here to be safe.
                 create_demo_meters(instance)
-                meters = Meter.objects.filter(organization=instance)
+                meters = Meter.objects.filter(organization=instance, is_sandbox=True)
 
             for i in range(5):
                 for meter in meters:

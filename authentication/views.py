@@ -485,8 +485,21 @@ class UserUpdateView(GenericAPIView):
     ]
 
     def patch(self, request, *args, **kwargs):
+        context = {}
+
+        if 'display_state' in request.data:
+            if not request.data.get('organization'):
+                    return Response(
+                        {"detail": "Organization is required when changing display state."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            context['organization'] = request.data.get('organization')
+
         serializer = self.get_serializer(
-            instance=request.user, data=request.data, partial=True
+            instance=request.user,
+            data=request.data,
+            partial=True,
+            context=context
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()

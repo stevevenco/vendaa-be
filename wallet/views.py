@@ -60,12 +60,15 @@ class WalletBalanceView(APIView):
 
     def get(self, request, organization_id):
         # Get the wallet for this organization
-        wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
+        organization = get_object_or_404(Organization, uuid=organization_id)
+        wallet_service = get_wallet_service(organization)
+        wallet = wallet_service.get_wallet_object(organization)
+        # wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
 
         try:
             # Get current balance from meter services
-            organization = wallet.reference
-            wallet_service = get_wallet_service(organization)
+            # organization = wallet.reference
+            # wallet_service = get_wallet_service(organization)
             external_balance_str = wallet_service.get_wallet_balance(wallet)
             currency_symbol = external_balance_str.split()[0]
 
@@ -127,12 +130,15 @@ class InitiatePaymentView(APIView):
             )
 
         # Get wallet
-        wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
+        organization = get_object_or_404(Organization, uuid=organization_id)
+        wallet_service = get_wallet_service(organization)
+        wallet = wallet_service.get_wallet_object(organization)
+        # wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
 
         try:
             # Get wallet service
-            organization = wallet.reference
-            wallet_service = get_wallet_service(organization)
+            # organization = wallet.reference
+            # wallet_service = get_wallet_service(organization)
 
             # Get payment options
             payment_options = wallet_service.top_up_wallet(wallet, amount)
@@ -173,12 +179,15 @@ class TransactionListView(ListAPIView):
         organization_id = self.kwargs["organization_id"]
 
         # Get the wallet for this organization
-        wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
+        organization = get_object_or_404(Organization, uuid=organization_id)
+        wallet_service = get_wallet_service(organization)
+        wallet = wallet_service.get_wallet_object(organization)
+        # wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
 
         # Get organization + wallet service
-        organization = get_object_or_404(Organization, uuid=organization_id)
+        # organization = get_object_or_404(Organization, uuid=organization_id)
         currency = organization.currency
-        wallet_service = get_wallet_service(organization)
+        # wallet_service = get_wallet_service(organization)
 
         # Get transaction history from external service
         transactions = wallet_service.get_wallet_transaction(wallet, currency)

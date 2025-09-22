@@ -15,6 +15,7 @@ class Wallet(TrackObjectStateMixin):
     currency = models.CharField(max_length=3)
     available_balance = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
     ledger_balance = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
+    is_sandbox = models.BooleanField(default=True)
 
     def __str__(self):
         return f"Wallet - {self.wallet_id} - {self.reference.name}"
@@ -48,6 +49,7 @@ class Transaction(TrackObjectStateMixin):
     idempotency_key = models.UUIDField(unique=True, null=True, blank=True)
     event = models.CharField(max_length=100, null=True, blank=True, choices=TRANSACTION_TYPES, default='unspecified')
     title = models.CharField(max_length=100, null=True, blank=True)
+    is_sandbox = models.BooleanField(default=True)
 
     def __str__(self):
         return f"Transaction - {self.transaction_id} - {self.status}"

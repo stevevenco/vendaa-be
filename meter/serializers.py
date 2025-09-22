@@ -71,16 +71,22 @@ class MeterSerializer(serializers.ModelSerializer):
         validated_data['organization'] = organization
 
         meter_number = validated_data.get('meter_number')
+        print(f"\n\nAttempting to add meter number {meter_number} to organization {organization.uuid}\n\n")
 
         # Check if meter with the same number already exists for this organization
-        if Meter.objects.filter(meter_number=meter_number, organization=organization).exists():
+        meter_service = get_meter_service(organization)
+        meter = meter_service.get_meter_by_number(meter_number, organization=organization)
+        print(f"\n\nChecked existence of meter number {meter_number} in organization {organization.uuid}, result: {meter}")
+        if meter:
+            print(f"\n\nMeter number {meter_number} already exists in organization {organization.uuid}")
             raise serializers.ValidationError(
                 {"meter_number": f"A meter with number '{meter_number}' already exists in your organization."}
             )
 
         try:
-            meter_service = get_meter_service(organization)
+            # meter_service = get_meter_service(organization)
             response_data = meter_service.add_meter(meter_number)
+            print(f"\n\nMeter Service Response Data: {response_data}\n\n")
 
             response = response_data.get('response', {})
             status = response.get('status')

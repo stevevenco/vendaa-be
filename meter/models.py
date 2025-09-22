@@ -21,6 +21,7 @@ class Meter(TrackObjectStateMixin):
     meter_type = models.CharField(choices=METER_TYPES, max_length=20)
     added_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='meters')
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, related_name='meters')
+    is_sandbox = models.BooleanField(default=True)
 
     def __str__(self):
         return f"Meter - {self.meter_number} - {self.customer_name}"
@@ -46,6 +47,7 @@ class UtilityVend(TrackObjectStateMixin):
     status = models.CharField(max_length=20, default='pending')  # e.g., pending, successful, failed
     initiated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='initiated_vends')
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, related_name='organization_vends')
+    is_sandbox = models.BooleanField(default=True)
 
     def __str__(self):
         return f"Vend - {self.vend_reference} - {self.meter.meter_number} - {self.amount}"

@@ -40,6 +40,11 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
+    DISPLAY_STATE = [
+        ("live", "Live"),
+        ("test", "Test"),
+    ]
+
     first_name = models.CharField(
         max_length=50, blank=True, null=True, default=None
     )
@@ -53,6 +58,9 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
+    display_state = models.CharField(
+        max_length=10, choices=DISPLAY_STATE, default="test"
+    )
 
     objects = UserManager()
 
@@ -78,6 +86,7 @@ class Organization(TrackObjectStateMixin):
         Country, on_delete=models.SET_NULL, null=True, blank=True
     )
     currency = models.CharField(max_length=10, blank=True)
+    is_verified = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
@@ -125,6 +134,8 @@ class OTP(TrackObjectStateMixin):
         ("signup", "Signup Verification"),
         ("password_reset", "Password Reset"),
         ("email_change", "Email Change"),
+        ("account_verification", "Account Verification"),
+        ("two_factor_auth", "Two Factor Authentication"),
     ]
 
     user = models.ForeignKey(
@@ -178,6 +189,3 @@ class Invitation(TrackObjectStateMixin):
 
     def __str__(self):
         return f"Invitation for {self.email} to {self.organization.name}"
-
-
-

@@ -48,7 +48,10 @@ class MeterListCreateView(generics.ListCreateAPIView):
         return [permission() for permission in permission_classes]
 
     def get_queryset(self):
-        return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid']).order_by('-created')
+        organization = Organization.objects.get(uuid=self.kwargs['org_uuid'])
+        meter_service = get_meter_service(organization)
+        return meter_service.get_all_meters(organization)
+        # return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid']).order_by('-created')
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -86,7 +89,10 @@ class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
         return [permission() for permission in permission_classes]
 
     def get_queryset(self):
-        return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
+        organization = Organization.objects.get(uuid=self.kwargs['org_uuid'])
+        meter_service = get_meter_service(organization)
+        return meter_service.get_all_meters(organization)
+        # return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
 
 
 class GenerateMeterTokenView(APIView):
@@ -113,8 +119,12 @@ class GenerateMeterTokenView(APIView):
         try:
             utility_cost = UtilityCost.objects.get(name=token_type)
             organization = Organization.objects.get(uuid=org_uuid)
-            wallet = Wallet.objects.get(reference=organization)
-            meter = Meter.objects.get(meter_number=meter_number, organization=organization)
+            wallet_service = get_wallet_service(organization)
+            wallet = wallet_service.get_wallet_object(organization)
+            # wallet = Wallet.objects.get(reference=organization)
+            meter_service = get_meter_service(organization)
+            meter = meter_service.get_meter_object(organization, meter_number)
+            # meter = Meter.objects.get(meter_number=meter_number, organization=organization)
         except (UtilityCost.DoesNotExist, Organization.DoesNotExist, Wallet.DoesNotExist, Meter.DoesNotExist) as e:
             return Response({"detail": f"Configuration or entity not found: {e}"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -162,19 +172,18 @@ class GenerateMeterTokenView(APIView):
                 # Lock wallet for update
                 locked_wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
 
+                # 1. Get the meter service
+                meter_service = get_meter_service(organization)
+
                 # Create a utility vend record
-                utility_vend = UtilityVend.objects.create(
+                utility_vend = meter_service.register_utility_vend(
                     meter=meter,
                     amount=amount_to_charge,
                     utility_cost=utility_cost,
                     vend_reference=f"VEND-{uuid.uuid4().hex}",
                     initiated_by=request.user,
-                    status='pending',
                     organization=organization
                 )
-
-                # 1. Get the meter service
-                meter_service = get_meter_service(organization)
 
                 # 2. Generate the token
                 token_response = meter_service.generate_token(token_type, validated_data, meter)
@@ -261,7 +270,10 @@ class UtilityVendsListView(generics.ListAPIView):
     ]
 
     def get_queryset(self):
-        return UtilityVend.objects.filter(organization__uuid=self.kwargs['org_uuid'])
+        organization = Organization.objects.get(uuid=self.kwargs['org_uuid'])
+        meter_service = get_meter_service(Organization.objects.get(uuid=self.kwargs['org_uuid']))
+        return meter_service.get_all_utility_vends(organization)
+        # return UtilityVend.objects.filter(organization__uuid=self.kwargs['org_uuid'])
 
     def get(self, request, *args, **kwargs):
         queryset = self.get_queryset()

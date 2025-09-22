@@ -19,8 +19,10 @@ class MeterServicesClient:
     def add_meter(self, meter_number: str):
         url = f"{self.base_url}/api/method/meter_services.v1.add_meter"
         data = {"meter": meter_number}
+        print(f"\n\nAdd Meter Data: {data}\n\n")
         try:
             response = requests.post(url, json=data, headers=self.headers)
+            print(f"\n\nAdd Meter Response: {response.json()}\n\n")
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
