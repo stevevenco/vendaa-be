@@ -95,6 +95,13 @@ class MeterSerializer(serializers.ModelSerializer):
             if status == 'success':
                 # Proceed with local creation
                 instance = super().create(validated_data)
+                if organization.is_sandbox:
+                    # For sandbox orgs, ensure the meter is marked as sandbox
+                    instance.is_sandbox = True
+                    instance.save()
+                else:
+                    instance.is_sandbox = False
+                    instance.save()
                 return instance
             else:
                 raise serializers.ValidationError({"detail": f"Failed to add meter: {message}"})

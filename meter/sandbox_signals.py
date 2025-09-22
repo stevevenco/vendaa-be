@@ -16,7 +16,35 @@ from wallet.wallet_service import get_wallet_service
 from .models import Meter, UtilityCost, UtilityVend
 from .meter_service import get_meter_service
 
+
+@receiver(post_save, sender=Organization)
+def generate_historical_sandbox_data(sender, instance, created, **kwargs):
+    """
+    Signal handler to generate historical utility vends for a new sandbox organization.
+    """
+    print(f"\n\n=====Post-save signal triggered for Organization {instance.uuid}, created={created}, is_sandbox={instance.is_sandbox}====\n\n")
+    if created and instance.is_sandbox and os.environ.get('PYTEST_RUNNING') != 'true':
+        try:
+            meters = Meter.objects.filter(organization=instance, is_sandbox=True)
+            if not meters.exists():
+                # This might happen if the demo meters are not created yet.
+                # The other signal should have already run.
+                # We can call it here to be safe.
+                create_demo_meters(instance)
+                meters = Meter.objects.filter(organization=instance, is_sandbox=True)
+
+            for i in range(5):
+                for meter in meters:
+                    # Vend for each of the last 5 months
+                    _vend_sandbox_meter_token(instance, meter, i)
+
+        except Exception as e:
+            # Log the error but don't stop the organization creation
+            print(f"Error generating historical sandbox data for organization {instance.uuid}: {str(e)}")
+
+
 def create_demo_meters(organization: Organization):
+        print(f"\n\nCreating demo meters for sandbox organization {organization.uuid}")
         for i in range(5):
             meter_number = f'SANDBOX-{random.randint(1000000000, 9999999999)}'
             Meter.objects.get_or_create(
@@ -32,11 +60,13 @@ def create_demo_meters(organization: Organization):
                     'is_sandbox': True,
                 }
             )
+            print(f"Created demo meter {meter_number} for organization {organization.uuid}")
 
 def _vend_sandbox_meter_token(organization: Organization, meter: Meter, month_ago):
     """
     A helper function to perform a sandbox vending operation for a given meter and month.
     """
+    print(f"\n\nVending for meter {meter.meter_number} for month offset {month_ago}\n\n")
     try:
         token_type = 'credit'
         utility_cost = UtilityCost.objects.get(name=token_type)
@@ -100,28 +130,3 @@ def _vend_sandbox_meter_token(organization: Organization, meter: Meter, month_ag
         print(f"Configuration or entity not found for sandbox vending: {e}")
     except Exception as e:
         print(f"An unexpected error occurred during sandbox vending: {str(e)}")
-
-
-@receiver(post_save, sender=Organization)
-def generate_historical_sandbox_data(sender, instance, created, **kwargs):
-    """
-    Signal handler to generate historical utility vends for a new sandbox organization.
-    """
-    if created and instance.is_sandbox and os.environ.get('PYTEST_RUNNING') != 'true':
-        try:
-            meters = Meter.objects.filter(organization=instance, is_sandbox=True)
-            if not meters.exists():
-                # This might happen if the demo meters are not created yet.
-                # The other signal should have already run.
-                # We can call it here to be safe.
-                create_demo_meters(instance)
-                meters = Meter.objects.filter(organization=instance, is_sandbox=True)
-
-            for i in range(5):
-                for meter in meters:
-                    # Vend for each of the last 5 months
-                    _vend_sandbox_meter_token(instance, meter, i)
-
-        except Exception as e:
-            # Log the error but don't stop the organization creation
-            print(f"Error generating historical sandbox data for organization {instance.uuid}: {str(e)}")

@@ -11,7 +11,7 @@ class Meter(TrackObjectStateMixin):
         ('gas', 'Gas'),
     ]
     customer_name = models.CharField(max_length=255)
-    meter_number = models.CharField(max_length=100, unique=True)
+    meter_number = models.CharField(max_length=100)
     email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
@@ -24,7 +24,7 @@ class Meter(TrackObjectStateMixin):
     is_sandbox = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"Meter - {self.meter_number} - {self.customer_name}"
+        return f"Meter - {self.meter_number} - {self.organization.name}"
 
 
 class UtilityCost(TrackObjectStateMixin):

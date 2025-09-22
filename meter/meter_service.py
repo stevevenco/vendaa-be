@@ -37,8 +37,8 @@ class MeterService(abc.ABC):
 
     @abc.abstractmethod
     def register_utility_vend(self, meter,
-                            amount_to_charge, utility_cost,
-                            user, organization
+                            amount, utility_cost,
+                            vend_reference, initiated_by, organization
     ):
         pass
 
@@ -158,15 +158,15 @@ class ProductionMeterService(MeterService):
             return None
 
     def register_utility_vend(self, meter,
-                            amount_to_charge, utility_cost,
-                            user, organization
+                            amount, utility_cost,
+                            vend_reference, initiated_by, organization
     ):
         utility_vend = UtilityVend.objects.create(
             meter=meter,
-            amount=amount_to_charge,
+            amount=amount,
             utility_cost=utility_cost,
-            vend_reference=f"VEND-{uuid.uuid4().hex}",
-            initiated_by=user,
+            vend_reference=vend_reference,
+            initiated_by=initiated_by,
             status='pending',
             organization=organization,
             is_sandbox=False
@@ -220,15 +220,15 @@ class SandboxMeterService(MeterService):
             )
 
     def register_utility_vend(self, meter,
-                            amount_to_charge, utility_cost,
-                            user, organization
+                            amount, utility_cost,
+                            vend_reference, initiated_by, organization
     ):
         utility_vend = UtilityVend.objects.create(
             meter=meter,
-            amount=amount_to_charge,
+            amount=amount,
             utility_cost=utility_cost,
-            vend_reference=f"VEND-{uuid.uuid4().hex}",
-            initiated_by=user,
+            vend_reference=vend_reference,
+            initiated_by=initiated_by,
             status='pending',
             organization=organization,
             is_sandbox=True
