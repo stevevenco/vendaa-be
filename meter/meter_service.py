@@ -2,10 +2,11 @@
 import abc
 import random
 import string
+import uuid
 from rest_framework import serializers
 
 from authentication.models import Organization
-from meter.models import Meter
+from meter.models import Meter, UtilityVend
 from meter.meter_services_client import MeterServicesClient
 
 
@@ -26,10 +27,39 @@ class MeterService(abc.ABC):
     def reconnect_meter(self, meter_number):
         pass
 
+    @abc.abstractmethod
+    def get_meter_object(self, organization, meter_number):
+        pass
+
+    @abc.abstractmethod
+    def get_all_meters(self, organization):
+        pass
+
+    @abc.abstractmethod
+    def register_utility_vend(self, meter,
+                            amount, utility_cost,
+                            vend_reference, initiated_by, organization
+    ):
+        pass
+
+    @abc.abstractmethod
+    def get_all_utility_vends(self, organization):
+        pass
+
+    @abc.abstractmethod
+    def get_meter_by_number(self, meter_number, organization):
+        pass
+
 
 class ProductionMeterService(MeterService):
     def __init__(self):
         self.client = MeterServicesClient()
+
+    def get_meter_object(self, organization, meter_number):
+        return Meter.objects.get(organization=organization, meter_number=meter_number, is_sandbox=False)
+
+    def get_all_meters(self, organization):
+        return Meter.objects.filter(organization=organization, is_sandbox=False)
 
     def _prepare_token_data(self, token_type, token_data, meter):
         """
@@ -118,6 +148,34 @@ class ProductionMeterService(MeterService):
     def add_meter(self, meter_number):
         return self.client.add_meter(meter_number)
 
+    def get_meter_by_number(self, meter_number, organization):
+        try:
+            meter = Meter.objects.get(meter_number=meter_number, organization=organization, is_sandbox=False)
+            print(f"Meter found: {meter.meter_number} in organization {organization.uuid}")
+            return meter
+        except Meter.DoesNotExist:
+            print(f"Meter with number {meter_number} not found in organization {organization.uuid}")
+            return None
+
+    def register_utility_vend(self, meter,
+                            amount, utility_cost,
+                            vend_reference, initiated_by, organization
+    ):
+        utility_vend = UtilityVend.objects.create(
+            meter=meter,
+            amount=amount,
+            utility_cost=utility_cost,
+            vend_reference=vend_reference,
+            initiated_by=initiated_by,
+            status='pending',
+            organization=organization,
+            is_sandbox=False
+        )
+        return utility_vend
+
+    def get_all_utility_vends(self, organization):
+        return UtilityVend.objects.filter(organization=organization, is_sandbox=False).order_by('-created')
+
     def disconnect_meter(self, meter_number):
         raise NotImplementedError("Disconnect meter is not implemented for production service yet.")
 
@@ -126,6 +184,12 @@ class ProductionMeterService(MeterService):
 
 
 class SandboxMeterService(MeterService):
+    def get_meter_object(self, organization, meter_number):
+        return Meter.objects.get(organization=organization, meter_number=meter_number, is_sandbox=True)
+
+    def get_all_meters(self, organization):
+        return Meter.objects.filter(organization=organization, is_sandbox=True).order_by('-created')
+
     def generate_token(self, token_type, token_data, meter):
         token = ''.join(random.choices(string.digits, k=20))
         return {
@@ -154,6 +218,32 @@ class SandboxMeterService(MeterService):
                     'key_revision_number': '1',
                 }
             )
+
+    def register_utility_vend(self, meter,
+                            amount, utility_cost,
+                            vend_reference, initiated_by, organization
+    ):
+        utility_vend = UtilityVend.objects.create(
+            meter=meter,
+            amount=amount,
+            utility_cost=utility_cost,
+            vend_reference=vend_reference,
+            initiated_by=initiated_by,
+            status='pending',
+            organization=organization,
+            is_sandbox=True
+        )
+        return utility_vend
+
+    def get_all_utility_vends(self, organization):
+        return UtilityVend.objects.filter(organization=organization, is_sandbox=True).order_by('-created')
+    
+    def get_meter_by_number(self, meter_number, organization):
+        try:
+            return Meter.objects.get(meter_number=meter_number, organization=organization, is_sandbox=True)
+        except Meter.DoesNotExist:
+            return None
+
 
     def add_meter(self, meter_number):
         return {"response": {"status": "success", "message": f"Sandbox meter {meter_number} added successfully."}}
