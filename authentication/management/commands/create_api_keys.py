@@ -1,3 +1,4 @@
+import uuid
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from authentication.models import Organization
@@ -9,9 +10,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--org-id',
-            type=int,
-            help='Create API keys for specific organization ID',
+            '--org-uuid',
+            type=str,
+            help='Create API keys for specific organization UUID',
         )
         parser.add_argument(
             '--dry-run',
@@ -20,8 +21,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        if options['org_id']:
-            organizations = Organization.objects.filter(id=options['org_id'])
+        if options['org_uuid']:
+            organizations = Organization.objects.filter(uuid=options['org_uuid'])
         else:
             organizations = Organization.objects.all()
 
@@ -38,7 +39,7 @@ class Command(BaseCommand):
             
             if options['dry_run']:
                 self.stdout.write(
-                    f"Would create API keys for organization '{org.name}' (ID: {org.uuid})"
+                    f"Would create API keys for organization '{org.name}' (UUID: {org.uuid})"
                 )
                 continue
             
@@ -49,10 +50,10 @@ class Command(BaseCommand):
                             organization=org,
                             key_type='secret',
                             created_by=org.created_by,
-                            name='Default Secret Key'
+                            name='Secret Key'
                         )
                         self.stdout.write(
-                            self.style.SUCCESS(f"Created secret key for '{org.name}': {secret_key.key_id}")
+                            self.style.SUCCESS(f"Created secret key for '{org.name}': {secret_key}, secret_full: {secret_full}")
                         )
                     
                     if not existing_public:
@@ -60,10 +61,10 @@ class Command(BaseCommand):
                             organization=org,
                             key_type='public',
                             created_by=org.created_by,
-                            name='Default Public Key'
+                            name='Public Key'
                         )
                         self.stdout.write(
-                            self.style.SUCCESS(f"Created public key for '{org.name}': {public_key.key_id}")
+                            self.style.SUCCESS(f"Created public key for '{org.name}': public_key: {public_key}, public_full: {public_full}")
                         )
                     
                     created_count += 1

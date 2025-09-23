@@ -15,7 +15,7 @@ def create_organization_api_keys(sender, instance, created, **kwargs):
                 organization=instance,
                 key_type='secret',
                 created_by=instance.created_by,
-                name='Default Secret Key'
+                name='Secret Key'
             )
             
             # Create public key  
@@ -23,7 +23,7 @@ def create_organization_api_keys(sender, instance, created, **kwargs):
                 organization=instance,
                 key_type='public', 
                 created_by=instance.created_by,
-                name='Default Public Key'
+                name='Public Key'
             )
         except Exception as e:
             # Log error but don't fail organization creation

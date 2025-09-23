@@ -25,13 +25,27 @@ class APIKeyPermission(permissions.BasePermission):
             return False
             
         # Check organization context if present
-        org_uuid = view.kwargs.get('org_uuid') or view.kwargs.get('uuid')
+        org_uuid = view.kwargs.get('org_uuid') or view.kwargs.get('organization_uuid') or view.kwargs.get('uuid')
         if org_uuid:
-            # Ensure API key belongs to the organization being accessed
-            if str(api_key.organization.uuid) != str(org_uuid):
+            try:
+                organization = Organization.objects.get(uuid=org_uuid)
+            except Organization.DoesNotExist:
                 return False
-                
+
+            # Ensure API key belongs to the organization being accessed
+            if api_key.organization != organization:
+                return False
+
+            # Ensure sandbox keys can only access sandbox organizations
+            if api_key.sandbox != organization.is_sandbox:
+                return False
+
         return True
+
+
+class MetersFullPermission(APIKeyPermission):
+    """Permission for full meters access"""
+    required_scope = 'meters:full'
 
 
 class MetersReadPermission(APIKeyPermission):
@@ -39,9 +53,14 @@ class MetersReadPermission(APIKeyPermission):
     required_scope = 'meters:read'
 
 
-class MetersFullPermission(APIKeyPermission):
+class VendingFullPermission(APIKeyPermission):
     """Permission for full meters access"""
-    required_scope = 'meters:full'
+    required_scope = 'vending:full'
+
+
+class VendingReadPermission(APIKeyPermission):
+    """Permission for full meters access"""
+    required_scope = 'vending:read'
 
 
 class OrganizationsFullPermission(APIKeyPermission):
@@ -54,6 +73,16 @@ class OrganizationsReadPermission(APIKeyPermission):
     required_scope = 'organizations:read'
 
 
+class MembershipFullPermission(APIKeyPermission):
+    """Permission for full organizations access"""
+    required_scope = 'membership:full'
+
+
+class MembershipReadPermission(APIKeyPermission):
+    """Permission for full organizations access"""
+    required_scope = 'membership:read'
+
+
 class AuthReadPermission(APIKeyPermission):
     """Permission for auth read access"""
     required_scope = 'auth:read'
@@ -64,9 +93,29 @@ class InvitationsFullPermission(APIKeyPermission):
     required_scope = 'invitations:full'
 
 
+class InvitationsReadPermission(APIKeyPermission):
+    """Permission for full invitations access"""
+    required_scope = 'invitations:read'
+
 class WalletFullPermission(APIKeyPermission):
     """Permission for full wallet access"""
     required_scope = 'wallet:full'
+
+
+class TransactionFullPermission(APIKeyPermission):
+    """Permission for full wallet access"""
+    required_scope = 'transaction:full'
+
+
+class TransactionReadPermission(APIKeyPermission):
+    """Permission for full wallet access"""
+    required_scope = 'transaction:read'
+
+
+
+class WalletReadPermission(APIKeyPermission):
+    """Permission for full wallet access"""
+    required_scope = 'wallet:read'
 
 
 class APIKeysFullPermission(APIKeyPermission):

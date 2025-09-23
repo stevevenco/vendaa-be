@@ -17,7 +17,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from authentication.api_key.authentication import APIKeyAuthentication
-from authentication.api_key.permissions import InvitationsFullPermission, IsOrganizationMemberOrAPIKey, IsOrganizationOwnerOrAdminOrAPIKey, OrganizationsFullPermission, OrganizationsReadPermission, create_scoped_permission
+from authentication.api_key.permissions import InvitationsFullPermission, IsOrganizationMemberOrAPIKey, IsOrganizationOwnerOrAdminOrAPIKey, MembershipFullPermission, OrganizationsFullPermission, OrganizationsReadPermission, create_scoped_permission
 
 from .models import Membership, Organization, User, Invitation
 from .serializers import (
@@ -39,8 +39,8 @@ from .serializers import (
 )
 from .utils import create_otp, send_invitation_email, send_otp
 
-from utils.permissions import IsOrganizationOwnerOrAdmin
-
+# from utils.permissions import CanManageOrganization, IsOrganizationOwnerOrAdmin
+from utils.permissions import HasOrgPermission, IsOrganizationOwnerOrAdmin
 
 class UserCreateView(CreateAPIView):
     """Generic View for Listing and Creating User Profiles"""
@@ -62,30 +62,28 @@ class UserCreateView(CreateAPIView):
         )
 
 
-# class OrganizationListCreateView(ListCreateAPIView):
-#     serializer_class = OrganizationSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def get_queryset(self):
-#         return Organization.objects.filter(memberships__user=self.request.user)
-
-#     def get_serializer_context(self):
-#         return {"request": self.request}
-
-
 class OrganizationListCreateView(ListCreateAPIView):
     serializer_class = OrganizationSerializer
-    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
 
     def get_permissions(self):
         """Dynamic permissions based on request method and authentication"""
         if self.request.method == 'GET':
             # Read-only access for both public and secret keys
-            permission_classes = [IsAuthenticated, OrganizationsReadPermission]
+            permission_classes = [
+                IsAuthenticated,
+                OrganizationsFullPermission,
+            ]
         else:
             # Write access only for secret keys and JWT users
-            permission_classes = [IsAuthenticated, OrganizationsFullPermission]
-        
+            permission_classes = [
+                IsAuthenticated,
+                OrganizationsFullPermission,
+            ]
+
         return [permission() for permission in permission_classes]
 
     def get_queryset(self):
@@ -96,27 +94,25 @@ class OrganizationListCreateView(ListCreateAPIView):
             # JWT users see organizations they're members of
             return Organization.objects.filter(
                 memberships__user=self.request.user
-            ).distinct()
-        
+            ).distinct().order_by('-created')
+
     def get_serializer_context(self):
         return {"request": self.request}
 
 
-# class OrganizationUpdateView(RetrieveUpdateDestroyAPIView):
-#     serializer_class = OrganizationUpdateSerializer
-#     permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
-#     lookup_field = "uuid"
-#     queryset = Organization.objects.all()
-
 class OrganizationUpdateView(RetrieveUpdateDestroyAPIView):
     serializer_class = OrganizationSerializer
-    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
     permission_classes = [
         IsAuthenticated,
         OrganizationsFullPermission,
-        IsOrganizationOwnerOrAdminOrAPIKey
+        HasOrgPermission('organization', 'write')
     ]
     lookup_field = 'uuid'
+    lookup_url_kwarg = "org_uuid"
 
     def get_queryset(self):
         if hasattr(self.request.user, 'is_api_key_user'):
@@ -128,8 +124,16 @@ class OrganizationUpdateView(RetrieveUpdateDestroyAPIView):
 
 
 class OrganizationInviteView(CreateAPIView):
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
     serializer_class = InvitationCreateSerializer
-    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
+    permission_classes = [
+        IsAuthenticated,
+        InvitationsFullPermission,
+        HasOrgPermission('invitation', 'write')
+    ]
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -189,11 +193,15 @@ class ListInvitationsView(GenericAPIView):
     - 'received': Shows invitations sent to the current user's email
     - 'sent': Shows invitations sent by organizations where user is admin/owner
     """
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
     serializer_class = InvitationDetailSerializer
     permission_classes = [
         IsAuthenticated,
         InvitationsFullPermission,
-        # IsOrganizationOwnerOrAdminOrAPIKey
+        HasOrgPermission('invitation', 'read')
     ]
 
     def get_queryset(self):
@@ -224,18 +232,29 @@ class ListInvitationsView(GenericAPIView):
 
 
 class CancelInviteView(GenericAPIView):
-    """Cancel an invitation (only by organization admin/owner)"""
-    permission_classes = [IsAuthenticated]
+    """Cancel an invitation (only by organization admin/owner/operations_manager)"""
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
+    permission_classes = [
+        IsAuthenticated,
+        InvitationsFullPermission,
+    ]
     serializer_class = serializers.Serializer
 
     def post(self, request, invitation_id):
         invitation = get_object_or_404(Invitation, token=invitation_id)
-        
+
         # Check if user has permission to cancel
         if not Membership.objects.filter(
             user=request.user,
             organization=invitation.organization,
-            role__in=['admin', 'owner']
+            role__in=[
+                'admin',
+                'owner',
+                'operations_manager'
+                ]
         ).exists():
             return Response(
                 {"detail": "You don't have permission to cancel this invitation."},
@@ -255,6 +274,10 @@ class CancelInviteView(GenericAPIView):
 
 class DeclineInviteView(GenericAPIView):
     """Decline an invitation (only by invited user)"""
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
     serializer_class = serializers.Serializer
     permission_classes = [
         IsAuthenticated,
@@ -311,12 +334,14 @@ class AcceptInviteView(GenericAPIView):
 
 
 class MemberListCreateView(ListCreateAPIView):
-    # permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
-    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
     permission_classes = [
         IsAuthenticated,
         InvitationsFullPermission,
-        IsOrganizationOwnerOrAdminOrAPIKey
+        HasOrgPermission('invitation', 'read')
     ]
 
     def get_serializer_class(self):
@@ -328,7 +353,7 @@ class MemberListCreateView(ListCreateAPIView):
         organization = get_object_or_404(
             Organization, uuid=self.kwargs["org_uuid"]
         )
-        return Membership.objects.filter(organization=organization)
+        return Membership.objects.filter(organization=organization).order_by('-created')
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -344,14 +369,6 @@ class MemberListCreateView(ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         organization = self.get_serializer_context()["organization"]
 
-        # Check if user is already a member
-        # if Membership.objects.filter(
-        #     organization=organization, user__email=serializer.validated_data["email"]
-        # ).exists():
-        #     raise serializers.ValidationError(
-        #         "A user with this email is already a member of this organization."
-        #     )
-
         invitation = serializer.save(
             organization=organization,
             sent_by=request.user
@@ -362,7 +379,15 @@ class MemberListCreateView(ListCreateAPIView):
 
 
 class MemberDetailView(RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdmin]
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
+    permission_classes = [
+        IsAuthenticated,
+        MembershipFullPermission,
+        HasOrgPermission('membership', 'write')
+    ]
     lookup_field = "uuid"
 
     def get_serializer_class(self):
@@ -437,9 +462,14 @@ class MemberDetailView(RetrieveUpdateDestroyAPIView):
 
 class UserDetailView(GenericAPIView):
     """Generic View for retrieving user details"""
-
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
     serializer_class = UserModelSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+    ]
 
     def get(self, request, *args, **kwargs):
         serializer = self.get_serializer(request.user)
@@ -450,15 +480,32 @@ class UserUpdateView(GenericAPIView):
     """Generic View for updating user details"""
 
     serializer_class = UserModelSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+    ]
 
     def patch(self, request, *args, **kwargs):
+        context = {}
+
+        if 'display_state' in request.data:
+            if not request.data.get('organization'):
+                    return Response(
+                        {"detail": "Organization is required when changing display state."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            context['organization'] = request.data.get('organization')
+
         serializer = self.get_serializer(
-            instance=request.user, data=request.data, partial=True
+            instance=request.user,
+            data=request.data,
+            partial=True,
+            context=context
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class VerifyOTPView(GenericAPIView):
     serializer_class = OTPVerifySerializer
     permission_classes = [AllowAny]
@@ -516,7 +563,9 @@ class ChangePasswordView(GenericAPIView):
     """Generic View for changing user password"""
 
     serializer_class = ChangePasswordSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+    ]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

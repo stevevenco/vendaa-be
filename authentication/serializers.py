@@ -29,20 +29,79 @@ class UserModelSerializer(serializers.ModelSerializer):
             "organizations",
             "is_active",
             "is_staff",
-            "is_verified"
+            "is_verified",
+            "display_state",
         ]
+        read_only_fields = ["is_active", "is_staff", "is_verified", "organizations"]
         extra_kwargs = {"password": {"write_only": True, "min_length": 8}}
+
+    def validate(self, attrs):
+        display_state = attrs.get("display_state")
+
+        if display_state in dict(User.DISPLAY_STATE):
+            organization_uuid = self.context.get("organization")
+
+            # Check if organization UUID is provided
+            if not organization_uuid:
+                raise serializers.ValidationError(
+                    "Organization UUID is required when setting display_state."
+                )
+
+            try:
+                organization = Organization.objects.get(uuid=organization_uuid)
+            except Organization.DoesNotExist:
+                raise serializers.ValidationError(
+                    "Organization not found."
+                )
+
+            # Check if user is a member of the organization
+            user_email = attrs.get("email") or self.instance.email
+            if not Membership.objects.filter(
+                organization=organization, user__email=user_email
+            ).exists():
+                raise serializers.ValidationError(
+                    "User is not a member of the specified organization."
+                )
+
+            # Update organization sandbox status based on display_state
+            if display_state == "live":
+                if not organization.is_verified:
+                    raise serializers.ValidationError(
+                        "Cannot set display_state to 'live' without a verified organization."
+                    )
+                organization.is_sandbox = False
+                organization.save()
+            elif display_state == "test":
+                organization.is_sandbox = True
+                organization.save()
+
+        return attrs
 
     def get_organizations(self, obj):
         memberships = obj.memberships.all()
-        return [
-            {
+        result = []
+
+        for membership in memberships:
+            body = {
                 "uuid": membership.organization.uuid,
                 "name": membership.organization.name,
+                "is_sandbox": membership.organization.is_sandbox,
+                "is_verified": membership.organization.is_verified,
                 "role": membership.role,
             }
-            for membership in memberships
-        ]
+
+            org_country = membership.organization.country
+            if org_country:
+                body["country"] = org_country.name
+                body["currency"] = org_country.currency_symbol
+            else:
+                body["country"] = "Unspecified"
+                body["currency"] = "Unspecified"
+
+            result.append(body)
+            print(f"\n Result: {result}\n")
+
+        return result
 
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
@@ -63,14 +122,14 @@ class OrganizationSerializer(serializers.ModelSerializer):
     )
     class Meta:
         model = Organization
-        fields = ["uuid", "name", "created_by", "created", "country", "currency"]
-        read_only_fields = ["uuid", "created_by", "created", "currency"]
+        fields = ["uuid", "name", "created_by", "created", "country", "currency", "is_sandbox", "is_verified"]
+        read_only_fields = ["uuid", "created_by", "created", "currency", "is_verified", "is_sandbox"]
 
     @transaction.atomic
     def create(self, validated_data):
         user = self.context["request"].user
         country = validated_data.get("country")
-        
+
         # Automatically set the currency based on the selected country
         if country:
             validated_data["currency"] = country.currency

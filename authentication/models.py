@@ -40,6 +40,11 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
+    DISPLAY_STATE = [
+        ("live", "Live"),
+        ("test", "Test"),
+    ]
+
     first_name = models.CharField(
         max_length=50, blank=True, null=True, default=None
     )
@@ -53,6 +58,9 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
+    display_state = models.CharField(
+        max_length=10, choices=DISPLAY_STATE, default="test"
+    )
 
     objects = UserManager()
 
@@ -66,6 +74,8 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
 
 class Organization(TrackObjectStateMixin):
     name = models.CharField(max_length=255)
+    is_sandbox = models.BooleanField(default=True)
+    # ref_sandbox_org = models.UUIDField(null=True, blank=True)
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -76,6 +86,7 @@ class Organization(TrackObjectStateMixin):
         Country, on_delete=models.SET_NULL, null=True, blank=True
     )
     currency = models.CharField(max_length=10, blank=True)
+    is_verified = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
@@ -86,6 +97,11 @@ class Membership(TrackObjectStateMixin):
         ("owner", "Owner"),
         ("admin", "Admin"),
         ("member", "Member"),
+        ("auditor", "Auditor"),
+        ("finance_manager", "Finance Manager"),
+        ("operations_manager", "Operations Manager"),
+        ("support_agent", "Support Agent"),
+        ("developer", "Developer"),
     ]
 
     user = models.ForeignKey(
@@ -118,6 +134,8 @@ class OTP(TrackObjectStateMixin):
         ("signup", "Signup Verification"),
         ("password_reset", "Password Reset"),
         ("email_change", "Email Change"),
+        ("account_verification", "Account Verification"),
+        ("two_factor_auth", "Two Factor Authentication"),
     ]
 
     user = models.ForeignKey(
@@ -171,6 +189,3 @@ class Invitation(TrackObjectStateMixin):
 
     def __str__(self):
         return f"Invitation for {self.email} to {self.organization.name}"
-
-
-

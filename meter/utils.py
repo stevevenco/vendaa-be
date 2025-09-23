@@ -1,105 +1,23 @@
-import requests
-from django.conf import settings
-from rest_framework import serializers
+def validate_meter_no(meter_no):
+    _meter_no = meter_no[:-1][::-1]
+    _idx = 0
+    sum_list = []
+    for digit in _meter_no:
+        if _idx % 2 == 0:
+            double = str(int(digit)*2)
+            if len(double) == 2:
+                sum_list.append(int(double[0]))
+                sum_list.append(int(double[1]))
+            else: sum_list.append(int(double))
+        else:
+            sum_list.append(int(digit))
+        _idx += 1
+    digit_sum = sum(sum_list)
+    luhn = (10 - (digit_sum % 10))
+    check_digit = int(meter_no[-1])
+    if luhn == 10:
+        luhn = 0
 
-def add_meter_to_service(meter_number):
-    """
-    Calls the external meter service to add a new meter.
-    """
-    url = f"{settings.METER_SERVICES_URL}/api/method/meter_services.v1.add_meter"
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'token {settings.METER_SERVICES_TOKEN}'
-    }
-    data = {
-        "meter": meter_number
-    }
-    try:
-        response = requests.post(url, json=data, headers=headers)
-        response.raise_for_status()  # Raise an exception for bad status codes
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        # Handle connection errors, timeouts, etc.
-        print(f"Request failed: {e}")
-        print(f"Response content: {response.json()}")
-        response_body = response.json()
-        # if response_body['response']['code'] == 500 and response_body.get("_server_messages"):
-        #     raise serializers.ValidationError({"detail": "Invalid Meter Number"})
-        # elif response_body['response']['code'] == 500 and response_body.get("message"):
-        #     raise serializers.ValidationError({"detail": "Invalid Meter Number"})
-        raise serializers.ValidationError({"detail": f"Failed to connect to meter service: {e}"})
-
-
-def generate_meter_token(token_type, token_data, meter):
-    """
-    Calls the external meter service to generate a token.
-    """
-    url = f"{settings.METER_SERVICES_URL}/api/method/meter_services.v1.generate_token"
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'token {settings.METER_SERVICES_TOKEN}'
-    }
-
-    if token_type == "credit":
-        token_data["subclass"] = 2
-        token_data["ea"] = 7
-        token_data["tct"] = 2
-        token_data["sgc"] = meter.sgc
-        token_data["krn"] = meter.key_revision_number
-        token_data["ti"] = meter.tariff_index
-        # token_data["sgc"] = 600675
-        # token_data["krn"] = 2
-        # token_data["ti"] = 10
-        token_data["allow_krn_update"] = False
-        token_data["key_expiry_number"] = 255
-        token_data["use3kct"] = False
-        token_data["allow_ken_update"] = False
-    elif token_type == "kct":
-        token_data["subclass"] = 2
-        token_data["ea"] = 7
-        token_data["tct"] = 2
-        token_data["sgc"] = meter.sgc
-        token_data["krn"] = meter.key_revision_number
-        token_data["ti"] = meter.tariff_index
-        token_data["allow_krn_update"] = False
-        token_data["key_expiry_number"] = 255
-        token_data["allow_ken_update"] = False
-        token_data["to_sgc"] = meter.sgc
-        token_data["to_krn"] = meter.key_revision_number
-        token_data["to_ti"] = meter.tariff_index
-    elif token_type == "clear_credit":
-        token_data["token_type"] = "mse"
-        token_data["subclass"] = 1
-        token_data["ea"] = 7
-        token_data["tct"] = 2
-        token_data["sgc"] = meter.sgc
-        token_data["krn"] = meter.key_revision_number
-        token_data["ti"] = meter.tariff_index
-        token_data["allow_krn_update"] = False
-        token_data["key_expiry_number"] = 255
-        token_data["use3kct"] = False
-        token_data["allow_ken_update"] = False
-    elif token_type == "clear_tamper":
-        token_data["token_type"] = "mse"
-        token_data["subclass"] = 5
-        token_data["ea"] = 7
-        token_data["tct"] = 2
-        token_data["sgc"] = meter.sgc
-        token_data["krn"] = meter.key_revision_number
-        token_data["ti"] = meter.tariff_index
-        token_data["allow_krn_update"] = False
-        token_data["key_expiry_number"] = 255
-        token_data["use3kct"] = False
-        token_data["allow_ken_update"] = False
-
-    if 'amount' in token_data:
-        token_data['amount'] = float(token_data['amount'])
-
-    try:
-        response = requests.post(url, json=token_data, headers=headers)
-        print(f"\n\nMeter Service Response: {response.json()}\n\n")
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        # raise serializers.ValidationError({"detail": f"Failed to connect to meter service: {e}"})
-        raise serializers.ValidationError(f"Failed to connect to meter service: {e}")
+    if luhn != check_digit:
+        return False
+    return True

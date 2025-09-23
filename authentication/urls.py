@@ -45,6 +45,9 @@ urlpatterns = [
     path("me/", UserDetailView.as_view(), name="user_detail"),
     path("me/update/", UserUpdateView.as_view(), name="user_update"),
 
+    # ----- SESSION ------ #
+    path("switch-state/", UserUpdateView.as_view(), name="switch_state"),
+
     # ----- ORGANIZATION ------ #
     path(
         "organizations/",
@@ -52,7 +55,7 @@ urlpatterns = [
         name="organization_list_create",
     ),
     path(
-        "organizations/<uuid>/",
+        "organizations/<uuid:org_uuid>/",
         OrganizationUpdateView.as_view(),
         name="organization_update",
     ),

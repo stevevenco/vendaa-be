@@ -1,6 +1,8 @@
 from rest_framework import serializers
-from .models import Meter, UtilityCost
-from .utils import add_meter_to_service
+
+from meter.utils import validate_meter_no
+from .models import Meter, UtilityCost, UtilityVend
+from .meter_service import get_meter_service
 
 class MeterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -23,6 +25,44 @@ class MeterSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["uuid", "added_by", "organization", "created", "last_updated"]
 
+    # --- Field Validations ---
+    def validate_meter_number(self, value):
+        """
+        Validate meter number
+        """
+        organization_is_sandbox = self.context['organization'].is_sandbox
+        if not organization_is_sandbox:
+            if not validate_meter_no(value):
+                raise serializers.ValidationError("Incorrect meter number.")
+        return value
+
+    def validate_tariff_index(self, value):
+        """
+        TI (tariff_index) must be an integer between 1 and 99 (1 or 2 digits).
+        """
+        if not value.isdigit():
+            raise serializers.ValidationError("Tariff Index must be numeric.")
+        num = int(value)
+        if num < 1 or num > 99:
+            raise serializers.ValidationError("Tariff Index must be between 1 and 99.")
+        return value
+
+    def validate_key_revision_number(self, value):
+        """
+        KRN (key_revision_number) must be either 1 or 2.
+        """
+        if value not in ["1", "2"]:
+            raise serializers.ValidationError("Key Revision Number must be either 1 or 2.")
+        return value
+
+    def validate_sgc(self, value):
+        """
+        SGC must be exactly 6 digits.
+        """
+        if not value.isdigit() or len(value) != 6:
+            raise serializers.ValidationError("SGC must be exactly 6 digits.")
+        return value
+
     def create(self, validated_data):
         user = self.context['request'].user
         organization = self.context['organization']
@@ -31,31 +71,42 @@ class MeterSerializer(serializers.ModelSerializer):
         validated_data['organization'] = organization
 
         meter_number = validated_data.get('meter_number')
+        print(f"\n\nAttempting to add meter number {meter_number} to organization {organization.uuid}\n\n")
 
         # Check if meter with the same number already exists for this organization
-        if Meter.objects.filter(meter_number=meter_number, organization=organization).exists():
+        meter_service = get_meter_service(organization)
+        meter = meter_service.get_meter_by_number(meter_number, organization=organization)
+        print(f"\n\nChecked existence of meter number {meter_number} in organization {organization.uuid}, result: {meter}")
+        if meter:
+            print(f"\n\nMeter number {meter_number} already exists in organization {organization.uuid}")
             raise serializers.ValidationError(
                 {"meter_number": f"A meter with number '{meter_number}' already exists in your organization."}
             )
 
         try:
-            response_data = add_meter_to_service(meter_number)
-            
+            # meter_service = get_meter_service(organization)
+            response_data = meter_service.add_meter(meter_number)
+            print(f"\n\nMeter Service Response Data: {response_data}\n\n")
+
             response = response_data.get('response', {})
             status = response.get('status')
             message = response.get('message')
 
             if status == 'success':
-                # "Meter already exists" is considered a success by the remote service
-                # We can proceed to create it in our system if it doesn't exist
+                # Proceed with local creation
                 instance = super().create(validated_data)
+                if organization.is_sandbox:
+                    # For sandbox orgs, ensure the meter is marked as sandbox
+                    instance.is_sandbox = True
+                    instance.save()
+                else:
+                    instance.is_sandbox = False
+                    instance.save()
                 return instance
             else:
-                # Handle failure cases
                 raise serializers.ValidationError({"detail": f"Failed to add meter: {message}"})
 
         except Exception as e:
-            # raise serializers.ValidationError({"detail": str(e)})
             raise serializers.ValidationError({"detail": "Invalid meter number"})
 
 
@@ -71,3 +122,9 @@ class UtilityCostSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Utility cost with this name already exists.")
         return value
 
+
+class UtilityVendsSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = UtilityVend
+        fields = ['meter', 'created', 'amount', 'vend_reference']

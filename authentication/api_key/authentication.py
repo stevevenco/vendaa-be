@@ -71,8 +71,8 @@ class APIKeyAuthentication(BaseAuthentication):
         if keyword.lower() != self.keyword.lower():
             return None
             
-        # Check if this looks like an API key (starts with sk- or pk-)
-        if not (token.startswith('sk-') or token.startswith('pk-')):
+        # Check if this looks like an API key (starts with sk_ or pk_)
+        if not (token.startswith('sk_') or token.startswith('pk_')):
             return None
             
         return self.authenticate_api_key(token)
