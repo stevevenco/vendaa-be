@@ -28,7 +28,7 @@ class APIKey(TrackObjectStateMixin):
     key_hash = models.CharField(max_length=128)  # Hashed version of the full key
     name = models.CharField(max_length=255, blank=True, null=True)  # Optional friendly name
     is_active = models.BooleanField(default=True)
-    sandbox = models.BooleanField(default=False)
+    is_sandbox = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     last_used_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(
@@ -39,10 +39,10 @@ class APIKey(TrackObjectStateMixin):
     )
 
     class Meta:
-        unique_together = ('organization', 'key_type')  # One key per type per org
+        unique_together = ('organization', 'key_type', 'is_sandbox')  # One key per type per org
         indexes = [
             models.Index(fields=['key_id']),
-            models.Index(fields=['organization', 'key_type']),
+            models.Index(fields=['organization', 'key_type', 'is_sandbox']),
         ]
 
     def clean(self):
@@ -51,12 +51,14 @@ class APIKey(TrackObjectStateMixin):
             # If updating existing key, exclude self from the check
             existing = APIKey.objects.filter(
                 organization=self.organization,
-                key_type=self.key_type
+                key_type=self.key_type,
+                is_sandbox=self.is_sandbox
             ).exclude(pk=self.pk)
         else:
             existing = APIKey.objects.filter(
                 organization=self.organization,
-                key_type=self.key_type
+                key_type=self.key_type,
+                is_sandbox=self.is_sandbox
             )
         
         if existing.exists():
@@ -78,18 +80,18 @@ class APIKey(TrackObjectStateMixin):
         return key_string, key_bytes
     
     @classmethod
-    def create_api_key(cls, organization, key_type, created_by=None, name=None):
+    def create_api_key(cls, organization, key_type, created_by=None, name=None, is_sandbox=True):
         """Create a new API key for an organization"""
-        
+        print(f"====== Crating API key for {organization.name} under {is_sandbox} scope====")
         # Check if key already exists
-        if cls.objects.filter(organization=organization, key_type=key_type).exists():
+        if cls.objects.filter(organization=organization, key_type=key_type, is_sandbox=is_sandbox).exists():
             raise ValidationError(f'Organization already has a {key_type} key')
         
         # Generate key
         key_string, key_bytes = cls.generate_key_pair()
         
         # Create key ID with appropriate prefix
-        env_prefix = 'test_' if organization.is_sandbox else 'live_'
+        env_prefix = 'test_' if is_sandbox else 'live_'
         key_prefix = 'sk_' if key_type == 'secret' else 'pk_'
         prefix = f"{key_prefix}{env_prefix}"
         key_id = f"{prefix}{secrets.token_urlsafe(16)}"
@@ -106,9 +108,9 @@ class APIKey(TrackObjectStateMixin):
             key_hash=key_hash,
             name=name,
             created_by=created_by,
-            sandbox=organization.is_sandbox
+            is_sandbox=is_sandbox
         )
-        
+
         return api_key, full_key
     
     @classmethod

@@ -1,4 +1,5 @@
 import abc
+from datetime import datetime
 import uuid
 from decimal import Decimal
 
@@ -41,7 +42,7 @@ class WalletService(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_wallet_transaction(self, wallet: Wallet, org_currency: str):
+    def get_wallet_transaction(self, wallet: Wallet, org_currency: str, month: int = None):
         pass
 
     @abc.abstractmethod
@@ -69,7 +70,7 @@ class SharedWalletService(WalletService):
     def get_wallet_balance(self, wallet: Wallet):
         raise NotImplementedError("Shared wallet service does not support this operation.")
 
-    def get_wallet_transaction(self, wallet: Wallet, org_currency: str):
+    def get_wallet_transaction(self, wallet: Wallet, org_currency: str, month: int = None):
         raise NotImplementedError("Shared wallet service does not support this operation.")
 
     def get_wallet_object(self, organization: Organization):
@@ -216,24 +217,35 @@ class ProductionWalletService(WalletService):
 
         raise Exception("Failed to get wallet balance: " + str(response_data))
 
-    def get_wallet_transaction(self, wallet: Wallet, org_currency: str):
+    
+    def get_wallet_transaction(self, wallet: Wallet, org_currency: str, month=None):
         status, response_data = self.client.get_transactions(wallet.wallet_id, org_currency)
         if status == 200 and response_data.get('status') == 'success':
             res_data = response_data['data']
-            # print(f"\n\nres_data: {res_data}\n\n")
-            # return [TransactionSerializer(txn).data for txn in res_data]
             serializer_data = []
+
             for txn in res_data:
-                txn_body = {}
-                txn_body['title'] = txn['title']
-                txn_body['transaction_id'] = txn['transaction_id']
-                txn_body['amount'] = org_currency + f"{float(txn['amount']):.2f}"
-                txn_body['created_at'] = txn['creation_date']
-                txn_body['status'] = txn['status']
-                txn_body['event'] = txn['event']
-                print(f"\n\n Transaction: {txn_body}\n\n")
+                # Parse created_at into datetime
+                created_at_dt = datetime.strptime(txn['creation_date'], "%Y-%m-%d %H:%M:%S.%f")
+
+                # If month filter is provided, skip transactions not in that month
+                print(f"\n===Transaction date: {created_at_dt.month}, Filter month: {month}===\n")
+                print(f"\n===Transaction date comparison: {created_at_dt.month != month}===, Type: {type(created_at_dt.month)} != {type(month)}===\n")
+                if month and created_at_dt.month != int(month):
+                    print(f"\nSkipping transaction: {txn['transaction_id']} from month {created_at_dt.month}\n")
+                    continue
+
+                txn_body = {
+                    'title': txn['title'],
+                    'transaction_id': txn['transaction_id'],
+                    'amount': org_currency + f"{float(txn['amount']):.2f}",
+                    'created_at': txn['creation_date'],
+                    'status': txn['status'],
+                    'event': txn['event'],
+                }
                 serializer_data.append(txn_body)
-            print(f"\n\n Transaction serialized data: {serializer_data[:3]}")
+                print(f"\nIncluded transaction: {txn['transaction_id']} from month {created_at_dt.month}\n")
+
             return serializer_data
 
         raise Exception('Failed to fetch transactions: ' + str(response_data))
@@ -365,8 +377,11 @@ class SandboxWalletService(WalletService):
 
         return f"{currency_symbol} {wallet.available_balance}"
 
-    def get_wallet_transaction(self, wallet: Wallet, org_currency: str):
-        transactions = Transaction.objects.filter(wallet=wallet, is_sandbox=True).order_by('-created')
+    def get_wallet_transaction(self, wallet: Wallet, org_currency: str, month=None):
+        transactions = Transaction.objects.filter(wallet=wallet, is_sandbox=True)
+        if month:
+            transactions = transactions.filter(created__month=month)
+        transactions = transactions.order_by('-created')
         print(f"\n\n Sandbox transactions: {len(transactions)}")
         return transactions
 
