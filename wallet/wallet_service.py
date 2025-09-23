@@ -254,6 +254,7 @@ class SandboxWalletService(WalletService):
         amount = Decimal("100000.00")
         wallet, created = Wallet.objects.get_or_create(
             reference=organization,
+            is_sandbox=True,
             defaults={
                 "wallet_id": f"sandbox_{uuid.uuid4().hex}",
                 "created_by": "sandbox@system.com",
