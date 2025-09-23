@@ -51,6 +51,9 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
     last_name = models.CharField(
         max_length=50, blank=True, null=True, default=None
     )
+    phone_code = models.CharField(
+        max_length=10, blank=True, null=True, default=None
+    )
     phone_number = models.CharField(
         max_length=20, blank=True, null=True, default=None
     )

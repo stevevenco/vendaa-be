@@ -21,8 +21,15 @@ class ApiKeyService(abc.ABC):
     def create_organization_keys(self, organization, created_by=None, is_sandbox=False):
         pass
 
+    @abc.abstractmethod
+    def get_api_key_by_uuid(self, key_uuid, organization):
+        pass
+
 
 class ProductionApiKeyService(ApiKeyService):
+    def get_api_key_by_uuid(self, key_uuid, organization):
+        return APIKey.objects.get(uuid=key_uuid, organization=organization, is_sandbox=False)
+    
     def create_api_key(self, organization, key_type, created_by=None, name=None, is_sandbox=False):
         if name not in ['Public Key', 'Secret Key']:
             raise ValueError("API key name must be either 'Public Key' or 'Secret Key'")
@@ -41,6 +48,9 @@ class ProductionApiKeyService(ApiKeyService):
 
 
 class SandboxApiKeyService(ApiKeyService):
+    def get_api_key_by_uuid(self, key_uuid, organization):
+        return APIKey.objects.get(uuid=key_uuid, organization=organization, is_sandbox=True)
+
     def create_api_key(self, organization, key_type, created_by=None, name=None, is_sandbox=True):
         if name not in ['Public Key', 'Secret Key']:
             raise ValueError("API key name must be either 'Public Key' or 'Secret Key'")
@@ -65,6 +75,9 @@ class SharedAPIKeyService(ApiKeyService):
         raise NotImplementedError("Shared API key service does not support this operation.")
 
     def revoke_api_key(self, organization, key_id):
+        raise NotImplementedError("Shared API key service does not support this operation.")
+
+    def get_api_key_by_uuid(self, key_uuid, organization):
         raise NotImplementedError("Shared API key service does not support this operation.")
 
     def create_organization_keys(self, organization, created_by=None):

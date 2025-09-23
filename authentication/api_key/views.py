@@ -27,7 +27,8 @@ class APIKeyListView(generics.ListAPIView):
         api_keys = api_key_service.get_api_keys(organization)
         # api_keys = APIKey.objects.filter(organization__uuid=org_uuid)
         print(f"\n\nFound {api_keys.count()} API keys")
-        return APIKey.objects.filter(organization__uuid=org_uuid)
+        return api_keys
+        # return APIKey.objects.filter(organization__uuid=org_uuid)
 
 
 class APIKeyCreateView(generics.CreateAPIView):
@@ -87,7 +88,10 @@ class APIKeyDetailView(generics.RetrieveUpdateDestroyAPIView):
     lookup_url_kwarg = 'key_uuid'
     
     def get_queryset(self):
-        return APIKey.objects.filter(organization__uuid=self.kwargs['org_uuid'])
+        organization = get_object_or_404(Organization, uuid=self.kwargs['org_uuid'])
+        api_key_service = get_api_key_service(organization)
+        return api_key_service.get_api_keys(organization)
+        # return APIKey.objects.filter(organization__uuid=self.kwargs['org_uuid'])
     
     def update(self, request, *args, **kwargs):
         # Only allow updating name and is_active fields
@@ -107,7 +111,9 @@ def regenerate_api_key(request, org_uuid, key_uuid):
     """Regenerate an existing API key"""
     
     organization = get_object_or_404(Organization, uuid=org_uuid)
-    api_key = get_object_or_404(APIKey, uuid=key_uuid, organization=organization)
+    api_key_service = get_api_key_service(organization)
+    api_key = api_key_service.get_api_key_by_uuid(key_uuid, organization)
+    # api_key = get_object_or_404(APIKey, uuid=key_uuid, organization=organization)
 
     try:
         # Delete old key

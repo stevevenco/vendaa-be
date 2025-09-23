@@ -9,7 +9,7 @@ def create_organization_api_keys(sender, instance, created, **kwargs):
     Automatically create API keys for both live and sandbox environments
     when a new organization is created.
     """
-    if created and not instance.is_sandbox:
+    if created:
         try:
             service = SharedAPIKeyService()
             service.create_organization_keys(instance, instance.created_by)

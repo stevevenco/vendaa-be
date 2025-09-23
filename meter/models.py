@@ -13,6 +13,9 @@ class Meter(TrackObjectStateMixin):
     customer_name = models.CharField(max_length=255)
     meter_number = models.CharField(max_length=100)
     email = models.EmailField(blank=True, null=True)
+    phone_code = models.CharField(
+        max_length=10, blank=True, null=True, default=None
+    )
     phone = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     sgc = models.CharField(max_length=50, blank=True, null=True)

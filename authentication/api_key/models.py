@@ -39,10 +39,10 @@ class APIKey(TrackObjectStateMixin):
     )
 
     class Meta:
-        unique_together = ('organization', 'key_type')  # One key per type per org
+        unique_together = ('organization', 'key_type', 'is_sandbox')  # One key per type per org
         indexes = [
             models.Index(fields=['key_id']),
-            models.Index(fields=['organization', 'key_type']),
+            models.Index(fields=['organization', 'key_type', 'is_sandbox']),
         ]
 
     def clean(self):
@@ -51,12 +51,14 @@ class APIKey(TrackObjectStateMixin):
             # If updating existing key, exclude self from the check
             existing = APIKey.objects.filter(
                 organization=self.organization,
-                key_type=self.key_type
+                key_type=self.key_type,
+                is_sandbox=self.is_sandbox
             ).exclude(pk=self.pk)
         else:
             existing = APIKey.objects.filter(
                 organization=self.organization,
-                key_type=self.key_type
+                key_type=self.key_type,
+                is_sandbox=self.is_sandbox
             )
         
         if existing.exists():

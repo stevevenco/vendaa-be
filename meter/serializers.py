@@ -12,6 +12,7 @@ class MeterSerializer(serializers.ModelSerializer):
             "customer_name",
             "meter_number",
             "email",
+            "phone_code",
             "phone",
             "address",
             "sgc",
