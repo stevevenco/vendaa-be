@@ -75,7 +75,6 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
 class Organization(TrackObjectStateMixin):
     name = models.CharField(max_length=255)
     is_sandbox = models.BooleanField(default=True)
-    # ref_sandbox_org = models.UUIDField(null=True, blank=True)
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -89,7 +88,7 @@ class Organization(TrackObjectStateMixin):
     is_verified = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} - {'Sandbox' if self.is_sandbox else 'Production'} - {self.created_by.email if self.created_by else 'No Owner'}"
 
 
 class Membership(TrackObjectStateMixin):
