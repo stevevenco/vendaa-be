@@ -76,8 +76,23 @@ class SharedWalletService(WalletService):
         raise NotImplementedError("Shared wallet service does not support this operation.")
 
     def create_shared_wallet(self, organization: Organization):
-        ProductionWalletService().create_wallet(organization)
-        SandboxWalletService().create_wallet(organization)
+        errors = []
+
+        try:
+            print(f"\nCreating production wallet for organization {organization.uuid}\n")
+            ProductionWalletService().create_wallet(organization)
+        except Exception as e:
+            errors.append(f"Production wallet creation failed: {e}")
+
+        try:
+            print(f"\nCreating sandbox wallet for organization {organization.uuid}\n")
+            SandboxWalletService().create_wallet(organization)
+        except Exception as e:
+            errors.append(f"Sandbox wallet creation failed: {e}")
+
+        if errors:
+            # You could log them instead of raising if you don’t want to break org creation
+            print("\n".join(errors))
 
 
 class ProductionWalletService(WalletService):
