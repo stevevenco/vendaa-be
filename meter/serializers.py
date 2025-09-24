@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from meter.utils import validate_meter_no
+from sandbox_feature_flag import SANDBOX_METER_NUMBER_VALIDATION
 from .models import Meter, UtilityCost, UtilityVend
 from .meter_service import get_meter_service
 
@@ -32,7 +33,7 @@ class MeterSerializer(serializers.ModelSerializer):
         Validate meter number
         """
         organization_is_sandbox = self.context['organization'].is_sandbox
-        if not organization_is_sandbox:
+        if SANDBOX_METER_NUMBER_VALIDATION or not organization_is_sandbox:
             if not validate_meter_no(value):
                 raise serializers.ValidationError("Incorrect meter number.")
         return value
