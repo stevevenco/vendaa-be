@@ -70,11 +70,14 @@ class UserModelSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(
                         "Cannot set display_state to 'live' without a verified organization."
                     )
-                organization.is_sandbox = False
-                organization.save()
+                print("Display state is set to live")
+                # commenting this out for now
+                # organization.is_sandbox = False
+                # organization.save()
             elif display_state == "test":
-                organization.is_sandbox = True
-                organization.save()
+                print("Display state is set to test")
+                # organization.is_sandbox = True
+                # organization.save()
 
         return attrs
 

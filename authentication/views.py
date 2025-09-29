@@ -108,7 +108,7 @@ class OrganizationUpdateView(RetrieveUpdateDestroyAPIView):
     ]
     permission_classes = [
         IsAuthenticated,
-        OrganizationsFullPermission,
+        # OrganizationsFullPermission,
         HasOrgPermission('organization', 'write')
     ]
     lookup_field = 'uuid'

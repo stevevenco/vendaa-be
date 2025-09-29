@@ -1,9 +1,11 @@
 import uuid
+import django_filters
 from rest_framework import generics, status, serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django_filters.rest_framework import DjangoFilterBackend
 from django.db import transaction as db_transaction
 from decimal import Decimal
 
@@ -16,6 +18,7 @@ from utils.permissions import HasOrgPermission, IsOrganizationMember, IsReadOnly
 from .models import Meter, UtilityCost, UtilityVend
 from .serializers import MeterSerializer, UtilityCostSerializer, UtilityVendsSerializer
 from .token_serializers import GenerateTokenSerializer
+from .utils import format_token
 from wallet.models import Wallet
 from .meter_service import get_meter_service
 from wallet.wallet_service import get_wallet_service, InsufficientBalanceError
@@ -27,6 +30,8 @@ class MeterListCreateView(generics.ListCreateAPIView):
         JWTAuthentication
     ]
     pagination_class = CustomPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['meter_type']
 
     def get_permissions(self):
         """Dynamic permissions based on request method and authentication"""
@@ -49,7 +54,7 @@ class MeterListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         organization = Organization.objects.get(uuid=self.kwargs['org_uuid'])
-        meter_service = get_meter_service(organization)
+        meter_service = get_meter_service(organization, self.request.user)
         return meter_service.get_all_meters(organization)
         # return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid']).order_by('-created')
 
@@ -90,7 +95,7 @@ class MeterDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         organization = Organization.objects.get(uuid=self.kwargs['org_uuid'])
-        meter_service = get_meter_service(organization)
+        meter_service = get_meter_service(organization, self.request.user)
         return meter_service.get_all_meters(organization)
         # return Meter.objects.filter(organization__uuid=self.kwargs['org_uuid'])
 
@@ -119,10 +124,10 @@ class GenerateMeterTokenView(APIView):
         try:
             utility_cost = UtilityCost.objects.get(name=token_type)
             organization = Organization.objects.get(uuid=org_uuid)
-            wallet_service = get_wallet_service(organization)
+            wallet_service = get_wallet_service(organization, request.user)
             wallet = wallet_service.get_wallet_object(organization)
             # wallet = Wallet.objects.get(reference=organization)
-            meter_service = get_meter_service(organization)
+            meter_service = get_meter_service(organization, request.user)
             meter = meter_service.get_meter_object(organization, meter_number)
             # meter = Meter.objects.get(meter_number=meter_number, organization=organization)
         except (UtilityCost.DoesNotExist, Organization.DoesNotExist, Wallet.DoesNotExist, Meter.DoesNotExist) as e:
@@ -173,7 +178,7 @@ class GenerateMeterTokenView(APIView):
                 locked_wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
 
                 # 1. Get the meter service
-                meter_service = get_meter_service(organization)
+                meter_service = get_meter_service(organization, request.user)
 
                 # Create a utility vend record
                 utility_vend = meter_service.register_utility_vend(
@@ -182,14 +187,17 @@ class GenerateMeterTokenView(APIView):
                     utility_cost=utility_cost,
                     vend_reference=f"VEND-{uuid.uuid4().hex}",
                     initiated_by=request.user,
-                    organization=organization
+                    organization=organization,
+                    token_type=token_type,
+                    token_class= operation if token_type == 'mgtk' else None,
+                    token_sub_class= action if token_type == 'mgtk' else None,
                 )
 
                 # 2. Generate the token
                 token_response = meter_service.generate_token(token_type, validated_data, meter)
 
                 # 3. Charge the wallet
-                wallet_service = get_wallet_service(organization)
+                wallet_service = get_wallet_service(organization, request.user)
                 transaction = wallet_service.debit_wallet(
                     wallet=locked_wallet,
                     amount=amount_to_charge,
@@ -200,18 +208,20 @@ class GenerateMeterTokenView(APIView):
                 utility_vend.save()
 
                 # Process response and save token
+                tokens = [item.get("tokenDec") for item in token_response.get('data', {}).get('data', []) if item.get("tokenDec")]
+                formatted_tokens = [format_token(token) for token in tokens]
+                utility_vend.token = formatted_tokens
+
                 if token_type == 'kct':
-                    tokens = [item.get("tokenDec") for item in token_response.get('data', {}).get('data', [])]
-                    utility_vend.token = ", ".join(tokens)
-                    processed_response = [{"description": item.get("description"), "token": item.get("tokenDec")} for item in token_response.get('data', {}).get('data', [])]
+                    processed_response = [{"description": item.get("description"), "token": format_token(item.get("tokenDec"))} for item in token_response.get('data', {}).get('data', [])]
                 else:
-                    data_list = token_response.get('data', {}).get('data', [])
-                    token = data_list[0].get("tokenDec") if data_list else None
-                    utility_vend.token = token
-                    processed_response = {"token": token}
+                    processed_response = {"token": formatted_tokens[0] if formatted_tokens else None}
 
                 utility_vend.token_details = token_response
-                utility_vend.status = 'successful'
+                utility_vend.status = 'success'
+                utility_vend.token_type = token_type
+                utility_vend.meter_type = meter.meter_type
+                utility_vend.meter_number = meter.meter_number
                 utility_vend.save()
 
             return Response(processed_response, status=status.HTTP_200_OK)
@@ -242,6 +252,27 @@ class UtilityCostListCreateView(generics.ListCreateAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class UtilityVendDetailView(generics.RetrieveAPIView):
+    serializer_class = UtilityVendsSerializer
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
+    permission_classes = [
+        IsAuthenticated,
+        IsOrganizationMember,
+        VendingReadPermission,
+        HasOrgPermission('vending', 'read')
+    ]
+    lookup_field = 'uuid'
+    lookup_url_kwarg = 'vend_uuid'
+
+    def get_queryset(self):
+        organization = Organization.objects.get(uuid=self.kwargs['org_uuid'])
+        meter_service = get_meter_service(organization, self.request.user)
+        return meter_service.get_all_utility_vends(organization)
+
+
 class UtilityCostUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UtilityCostSerializer
     permission_classes = [IsReadOnlyOrAdmin]
@@ -256,6 +287,16 @@ class UtilityCostUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class CharInFilter(django_filters.BaseInFilter, django_filters.CharFilter):
+    pass
+
+class UtilityVendFilter(django_filters.FilterSet):
+    token_type = CharInFilter(field_name="token_type", lookup_expr="in")
+
+    class Meta:
+        model = UtilityVend
+        fields = ["token_type"]
+
 class UtilityVendsListView(generics.ListAPIView):
     serializer_class = UtilityVendsSerializer
     authentication_classes = [
@@ -268,14 +309,11 @@ class UtilityVendsListView(generics.ListAPIView):
         VendingReadPermission,
         HasOrgPermission('vending', 'read')
     ]
+    pagination_class = CustomPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = UtilityVendFilter
 
     def get_queryset(self):
         organization = Organization.objects.get(uuid=self.kwargs['org_uuid'])
-        meter_service = get_meter_service(Organization.objects.get(uuid=self.kwargs['org_uuid']))
+        meter_service = get_meter_service(Organization.objects.get(uuid=self.kwargs['org_uuid']), self.request.user)
         return meter_service.get_all_utility_vends(organization)
-        # return UtilityVend.objects.filter(organization__uuid=self.kwargs['org_uuid'])
-
-    def get(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)

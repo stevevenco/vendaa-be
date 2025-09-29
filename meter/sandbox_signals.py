@@ -11,10 +11,12 @@ from django.dispatch import receiver
 from rest_framework import serializers
 
 from authentication.models import Organization
+from sandbox_feature_flag import POPULATE_SANDBOX_DEMO_METERS, POPULATE_SANDBOX_DEMO_VENDS
 from wallet.models import Wallet
 from wallet.wallet_service import get_wallet_service
 from .models import Meter, UtilityCost, UtilityVend
 from .meter_service import get_meter_service
+from .utils import format_token
 
 
 @receiver(post_save, sender=Organization)
@@ -30,13 +32,15 @@ def generate_historical_sandbox_data(sender, instance, created, **kwargs):
                 # This might happen if the demo meters are not created yet.
                 # The other signal should have already run.
                 # We can call it here to be safe.
-                create_demo_meters(instance)
+                if POPULATE_SANDBOX_DEMO_METERS:
+                    create_demo_meters(instance)
                 meters = Meter.objects.filter(organization=instance, is_sandbox=True)
 
-            for i in range(5):
-                for meter in meters:
-                    # Vend for each of the last 5 months
-                    _vend_sandbox_meter_token(instance, meter, i)
+            if POPULATE_SANDBOX_DEMO_VENDS:
+                for i in range(5):
+                    for meter in meters:
+                        # Vend for each of the last 5 months
+                        _vend_sandbox_meter_token(instance, meter, i)
 
         except Exception as e:
             # Log the error but don't stop the organization creation
@@ -68,9 +72,14 @@ def _vend_sandbox_meter_token(organization: Organization, meter: Meter, month_ag
     """
     print(f"\n\nVending for meter {meter.meter_number} for month offset {month_ago}\n\n")
     try:
-        token_type = 'credit'
+        token_type = random.choice(["credit", "mse", "mgtk"])
         utility_cost = UtilityCost.objects.get(name=token_type)
         wallet = Wallet.objects.get(reference=organization, is_sandbox=True)
+        token_class = random.choice(["Detect Tamper", "Disconnect On Tamper"])
+        token_sub_class = {
+            "Detect Tamper": random.choice(["Enable", "Disable"]),
+            "Disconnect On Tamper": random.choice(["Enable", "Disable"])
+        }
 
         amount_to_charge = Decimal(random.uniform(10, 100))
 
@@ -87,21 +96,26 @@ def _vend_sandbox_meter_token(organization: Organization, meter: Meter, month_ag
                 amount=amount_to_charge,
                 utility_cost=utility_cost,
                 vend_reference=f"VEND-{uuid.uuid4().hex}",
-                initiated_by=None,  # No user in signal
+                initiated_by=organization.created_by,  # No user in signal
                 status='pending',
                 organization=organization,
-                is_sandbox=True
+                is_sandbox=True,
+                meter_number=meter.meter_number,
+                meter_type=meter.meter_type,
+                token_type=token_type,
+                token_class=token_class if token_type == "mgtk" else None,
+                token_sub_class=token_sub_class[token_class] if token_type == "mgtk" else None
             )
 
             # 1. Get the meter service
-            meter_service = get_meter_service(organization)
+            meter_service = get_meter_service(organization, organization.created_by)
 
             # 2. Generate the token
             validated_data = {'amount': amount_to_charge}
             token_response = meter_service.generate_token(token_type, validated_data, meter)
 
             # 3. Charge the wallet
-            wallet_service = get_wallet_service(organization)
+            wallet_service = get_wallet_service(organization, organization.created_by)
             transaction = wallet_service.debit_wallet(
                 wallet=locked_wallet,
                 amount=amount_to_charge,
@@ -114,12 +128,14 @@ def _vend_sandbox_meter_token(organization: Organization, meter: Meter, month_ag
             utility_vend.save()
 
             # Process response and save token
-            data_list = token_response.get('data', {}).get('data', [])
-            token = data_list[0].get("tokenDec") if data_list else None
-            utility_vend.token = token
+            tokens = [item.get("tokenDec") for item in token_response.get('data', {}).get('data', [])]
+            utility_vend.token = [format_token(token) for token in tokens]
 
             utility_vend.token_details = token_response
-            utility_vend.status = 'successful'
+            utility_vend.status = 'Success'
+            utility_vend.token_type = token_type
+            utility_vend.meter_type = meter.meter_type
+            utility_vend.meter_number = meter.meter_number
 
             # Set the created_at to a past date
             # vend_date = datetime.now() - relativedelta(months=month_ago)

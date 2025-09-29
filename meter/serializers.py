@@ -76,7 +76,7 @@ class MeterSerializer(serializers.ModelSerializer):
         print(f"\n\nAttempting to add meter number {meter_number} to organization {organization.uuid}\n\n")
 
         # Check if meter with the same number already exists for this organization
-        meter_service = get_meter_service(organization)
+        meter_service = get_meter_service(organization, user)
         meter = meter_service.get_meter_by_number(meter_number, organization=organization)
         print(f"\n\nChecked existence of meter number {meter_number} in organization {organization.uuid}, result: {meter}")
         if meter:
@@ -126,7 +126,27 @@ class UtilityCostSerializer(serializers.ModelSerializer):
 
 
 class UtilityVendsSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = UtilityVend
-        fields = ['meter', 'created', 'amount', 'vend_reference']
+        fields = [
+            "uuid",
+            "meter",
+            "transaction",
+            "amount",
+            "units",
+            "utility_cost",
+            "vend_reference",
+            "token",
+            "token_details",
+            "status",
+            "initiated_by",
+            "organization",
+            "is_sandbox",
+            "token_type",
+            "token_class",
+            "token_sub_class",
+            "meter_type",
+            "meter_number",
+            "created",
+            "last_updated",
+        ]

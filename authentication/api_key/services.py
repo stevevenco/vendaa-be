@@ -100,7 +100,10 @@ class SharedAPIKeyService(ApiKeyService):
             raise Exception(f"Failed to create sandbox API Keys: {e}")
 
 
-def get_api_key_service(organization):
-    if organization.is_sandbox:
+def get_api_key_service(organization, user):
+    if user.display_state == 'test':
         return SandboxApiKeyService()
     return ProductionApiKeyService()
+    # if organization.is_sandbox:
+    #     return SandboxApiKeyService()
+    # return ProductionApiKeyService()

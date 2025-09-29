@@ -8,7 +8,7 @@ from django.db import transaction as db_transaction
 
 
 from .models import Wallet, Transaction
-from authentication.models import Organization
+from authentication.models import Organization, User
 from countries.models import Country
 from .meter_services_client import MeterServicesClient
 
@@ -46,6 +46,10 @@ class WalletService(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def get_transaction_details(self, wallet: Wallet, transaction_id: str, org_currency):
+        pass
+
+    @abc.abstractmethod
     def create_shared_wallet(self, organization: Organization):
         pass
 
@@ -71,6 +75,9 @@ class SharedWalletService(WalletService):
         raise NotImplementedError("Shared wallet service does not support this operation.")
 
     def get_wallet_transaction(self, wallet: Wallet, org_currency: str, month: int = None):
+        raise NotImplementedError("Shared wallet service does not support this operation.")
+
+    def get_transaction_details(self, wallet: Wallet, transaction_id: str, org_currency):
         raise NotImplementedError("Shared wallet service does not support this operation.")
 
     def get_wallet_object(self, organization: Organization):
@@ -136,7 +143,7 @@ class ProductionWalletService(WalletService):
         raise Exception("Failed to create wallet: " + str(response_data))
 
     def debit_wallet(self, wallet: Wallet, amount: Decimal, reference: str, idempotency_key: str = None):
-        if idempotency_key and Transaction.objects.filter(idempotency_key=idempotency_key, status="Success", is_sandbox=False).exists():
+        if idempotency_key and Transaction.objects.filter(idempotency_key=idempotency_key, status="success", is_sandbox=False).exists():
             raise ValueError("Duplicate request: A successful transaction with this idempotency key already exists.")
 
         transaction = Transaction.objects.create(
@@ -167,7 +174,7 @@ class ProductionWalletService(WalletService):
             wallet.available_balance -= amount
             wallet.save()
 
-            transaction.status = "successful"
+            transaction.status = "success"
             transaction.save()
 
             return transaction
@@ -195,7 +202,7 @@ class ProductionWalletService(WalletService):
                 wallet=wallet,
                 amount=original_transaction.amount,
                 transaction_type="refund",
-                status="Success",
+                status="success",
                 reference=original_transaction.transaction_id,
                 transaction_id=f"TXN-REF-{uuid.uuid4().hex}",
                 is_sandbox=False,
@@ -221,6 +228,8 @@ class ProductionWalletService(WalletService):
     def get_wallet_transaction(self, wallet: Wallet, org_currency: str, month=None):
         status, response_data = self.client.get_transactions(wallet.wallet_id, org_currency)
         if status == 200 and response_data.get('status') == 'success':
+            if response_data['data'] is None:
+                return []
             res_data = response_data['data']
             serializer_data = []
 
@@ -249,6 +258,22 @@ class ProductionWalletService(WalletService):
             return serializer_data
 
         raise Exception('Failed to fetch transactions: ' + str(response_data))
+
+    def get_transaction_details(self, wallet: Wallet, transaction_id: str, org_currency: str):
+        status, response_data = self.client.get_single_transaction(transaction_id)
+        if status == 200 and response_data.get('status') == 'success':
+            txn = response_data['data']
+            txn_body = {
+                'title': txn.get('title', f"Transaction {txn['transaction_id']}"),
+                'transaction_id': txn['transaction_id'],
+                'amount': org_currency + f"{float(txn['amount']):.2f}",
+                'created_at': txn['creation_date'],
+                'status': txn['status'],
+                'event': txn['event'],
+            }
+            return txn_body
+
+        return None
 
     def create_shared_wallet(self, organization: Organization):
         raise NotImplementedError("Production wallet service does not support this operation.")
@@ -287,7 +312,7 @@ class SandboxWalletService(WalletService):
             amount=amount,
             event="Fund",
             transaction_type="funding",
-            status="Success",
+            status="success",
             reference=f"SANDBOX-FUND-{uuid.uuid4().hex}",
             transaction_id=f"TXN-FUND-{uuid.uuid4().hex}",
             is_sandbox=True,
@@ -295,7 +320,7 @@ class SandboxWalletService(WalletService):
         return wallet
 
     def debit_wallet(self, wallet: Wallet, amount: Decimal, reference: str, idempotency_key: str = None):
-        if idempotency_key and Transaction.objects.filter(idempotency_key=idempotency_key, status="Success", is_sandbox=True).exists():
+        if idempotency_key and Transaction.objects.filter(idempotency_key=idempotency_key, status="success", is_sandbox=True).exists():
             raise ValueError("Duplicate request: A successful transaction with this idempotency key already exists.")
 
         transaction = Transaction.objects.create(
@@ -319,7 +344,7 @@ class SandboxWalletService(WalletService):
         wallet.available_balance -= amount
         wallet.save()
 
-        transaction.status = "successful"
+        transaction.status = "success"
         transaction.save()
 
         return transaction
@@ -335,7 +360,7 @@ class SandboxWalletService(WalletService):
                 wallet=wallet,
                 amount=amount,
                 transaction_type="funding",
-                status="Success",
+                status="success",
                 reference=f"SANDBOX-FUND-{uuid.uuid4().hex}",
                 transaction_id=f"TXN-FUND-{uuid.uuid4().hex}",
                 is_sandbox=True,
@@ -354,7 +379,7 @@ class SandboxWalletService(WalletService):
                 wallet=wallet,
                 amount=original_transaction.amount,
                 transaction_type="refund",
-                status="Success",
+                status="success",
                 reference=original_transaction.transaction_id,
                 transaction_id=f"TXN-REF-{uuid.uuid4().hex}",
                 is_sandbox=True,
@@ -385,13 +410,24 @@ class SandboxWalletService(WalletService):
         print(f"\n\n Sandbox transactions: {len(transactions)}")
         return transactions
 
+    def get_transaction_details(self, wallet: Wallet, transaction_id: str, org_currency: str):
+        transaction = Transaction.objects.filter(wallet=wallet, transaction_id=transaction_id, is_sandbox=True).first()
+        if not transaction:
+            return None
+        return transaction
+
     def create_shared_wallet(self, organization: Organization):
         raise NotImplementedError("Sandbox wallet service does not support this operation.")
 
 
-def get_wallet_service(organization: Organization):
-    if organization.is_sandbox:
+def get_wallet_service(organization: Organization, user: User):
+    if user.display_state == 'test':
         print(f"\nOrganization is sandbox routing to wallet sandbox service\n")
         return SandboxWalletService()
     print(f"\nOrganization is sandbox routing to wallet sandbox service\n")
     return ProductionWalletService()
+    # if organization.is_sandbox:
+    #     print(f"\nOrganization is sandbox routing to wallet sandbox service\n")
+    #     return SandboxWalletService()
+    # print(f"\nOrganization is sandbox routing to wallet sandbox service\n")
+    # return ProductionWalletService()

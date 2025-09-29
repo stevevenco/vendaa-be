@@ -5,7 +5,7 @@ import string
 import uuid
 from rest_framework import serializers
 
-from authentication.models import Organization
+from authentication.models import Organization, User
 from meter.models import Meter, UtilityVend
 from meter.meter_services_client import MeterServicesClient
 
@@ -38,7 +38,8 @@ class MeterService(abc.ABC):
     @abc.abstractmethod
     def register_utility_vend(self, meter,
                             amount, utility_cost,
-                            vend_reference, initiated_by, organization
+                            vend_reference, initiated_by, organization,
+                            token_type=None, token_class=None, token_sub_class=None
     ):
         pass
 
@@ -159,7 +160,8 @@ class ProductionMeterService(MeterService):
 
     def register_utility_vend(self, meter,
                             amount, utility_cost,
-                            vend_reference, initiated_by, organization
+                            vend_reference, initiated_by, organization,
+                            token_type=None, token_class=None, token_sub_class=None
     ):
         utility_vend = UtilityVend.objects.create(
             meter=meter,
@@ -169,7 +171,12 @@ class ProductionMeterService(MeterService):
             initiated_by=initiated_by,
             status='pending',
             organization=organization,
-            is_sandbox=False
+            is_sandbox=False,
+            meter_number=meter.meter_number,
+            meter_type=meter.meter_type,
+            token_type=token_type,
+            token_class=token_class,
+            token_sub_class=token_sub_class
         )
         return utility_vend
 
@@ -221,7 +228,8 @@ class SandboxMeterService(MeterService):
 
     def register_utility_vend(self, meter,
                             amount, utility_cost,
-                            vend_reference, initiated_by, organization
+                            vend_reference, initiated_by, organization,
+                            token_type=None, token_class=None, token_sub_class=None
     ):
         utility_vend = UtilityVend.objects.create(
             meter=meter,
@@ -231,7 +239,12 @@ class SandboxMeterService(MeterService):
             initiated_by=initiated_by,
             status='pending',
             organization=organization,
-            is_sandbox=True
+            is_sandbox=True,
+            meter_number=meter.meter_number,
+            meter_type=meter.meter_type,
+            token_type=token_type,
+            token_class=token_class,
+            token_sub_class=token_sub_class
         )
         return utility_vend
 
@@ -255,7 +268,10 @@ class SandboxMeterService(MeterService):
         return {"status": "success", "message": f"Sandbox meter {meter_number} reconnected successfully."}
 
 
-def get_meter_service(organization):
-    if organization.is_sandbox:
+def get_meter_service(organization, user: User):
+    if user.display_state == 'test':
         return SandboxMeterService()
     return ProductionMeterService()
+    # if organization.is_sandbox:
+    #     return SandboxMeterService()
+    # return ProductionMeterService()

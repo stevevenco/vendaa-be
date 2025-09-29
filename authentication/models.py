@@ -88,7 +88,7 @@ class Organization(TrackObjectStateMixin):
         Country, on_delete=models.SET_NULL, null=True, blank=True
     )
     currency = models.CharField(max_length=10, blank=True)
-    is_verified = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.name} - {'Sandbox' if self.is_sandbox else 'Production'} - {self.created_by.email if self.created_by else 'No Owner'}"

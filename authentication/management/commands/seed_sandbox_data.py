@@ -24,7 +24,7 @@ class Command(BaseCommand):
         self.stdout.write(f'Seeding data for sandbox organization "{organization.name}"...')
 
         # 1. Create a pre-funded wallet
-        wallet_service = get_wallet_service(organization)
+        wallet_service = get_wallet_service(organization, None)
         wallet = wallet_service.create_wallet(organization)
         self.stdout.write(self.style.SUCCESS(f'Successfully created and funded wallet with ID {wallet.wallet_id}.'))
 
