@@ -1,11 +1,11 @@
 from decimal import Decimal
 import json
-from rest_framework import status
+from rest_framework import status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.generics import ListAPIView
+from rest_framework.generics import ListAPIView, RetrieveAPIView
 
 from django.shortcuts import get_object_or_404
 
@@ -61,7 +61,7 @@ class WalletBalanceView(APIView):
     def get(self, request, organization_id):
         # Get the wallet for this organization
         organization = get_object_or_404(Organization, uuid=organization_id)
-        wallet_service = get_wallet_service(organization)
+        wallet_service = get_wallet_service(organization, request.user)
         wallet = wallet_service.get_wallet_object(organization)
         # wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
 
@@ -131,7 +131,7 @@ class InitiatePaymentView(APIView):
 
         # Get wallet
         organization = get_object_or_404(Organization, uuid=organization_id)
-        wallet_service = get_wallet_service(organization)
+        wallet_service = get_wallet_service(organization, request.user)
         wallet = wallet_service.get_wallet_object(organization)
         # wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
 
@@ -180,7 +180,7 @@ class TransactionListView(ListAPIView):
 
         # Get the wallet for this organization
         organization = get_object_or_404(Organization, uuid=organization_id)
-        wallet_service = get_wallet_service(organization)
+        wallet_service = get_wallet_service(organization, self.request.user)
         wallet = wallet_service.get_wallet_object(organization)
         # wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
 
@@ -203,6 +203,63 @@ class TransactionListView(ListAPIView):
         """
         Dynamically pick serializer depending on sandbox flag.
         """
-        if getattr(self, "organization", None) and self.organization.is_sandbox:
+        if self.request.user.display_state == 'test':
+            return SandboxTransactionSerializer
+        return TransactionSerializer
+        # if self.organization.is_sandbox:
+        #     return SandboxTransactionSerializer
+        # return TransactionSerializer
+
+
+class TransactionDetailView(RetrieveAPIView):
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication,
+    ]
+    permission_classes = [
+        IsAuthenticated,
+        TransactionReadPermission,
+        HasOrgPermission('transaction', 'read'),
+    ]
+    serializer_class = TransactionSerializer
+
+    def get_object(self):
+        """
+        Return the transaction object for the given organization and transaction UUID.
+        """
+        organization_id = self.kwargs["organization_id"]
+        print(f"\n===Organization ID: {organization_id}===\n")
+        transaction_id = self.kwargs["transaction_id"]
+        print(f"\n===Transaction ID: {transaction_id}===\n")
+
+        # Get the wallet for this organization
+        organization = get_object_or_404(Organization, uuid=organization_id)
+        wallet_service = get_wallet_service(organization, self.request.user)
+        wallet = wallet_service.get_wallet_object(organization)
+        # wallet = get_object_or_404(Wallet, reference__uuid=organization_id)
+
+        # Get organization + wallet service
+        # organization = get_object_or_404(Organization, uuid=organization_id)
+        currency = organization.currency
+
+        # Get transaction details from external service
+        transaction = wallet_service.get_transaction_details(wallet, transaction_id, currency)
+        print(f"\n===Transaction: {transaction}===\n")
+
+        if not transaction:
+            raise serializers.ValidationError(
+                f"Transaction with ID '{transaction_id}' not found in your organization."
+            )
+
+        # Store organization so we can use it later in serializer_class
+        self.organization = organization
+
+        return transaction
+
+    def get_serializer_class(self):
+        """
+        Dynamically pick serializer depending on sandbox flag.
+        """
+        if self.request.user.display_state == 'test':
             return SandboxTransactionSerializer
         return TransactionSerializer

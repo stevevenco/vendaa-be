@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from meter.utils import validate_meter_no
+from sandbox_feature_flag import SANDBOX_METER_NUMBER_VALIDATION
 from .models import Meter, UtilityCost, UtilityVend
 from .meter_service import get_meter_service
 
@@ -32,7 +33,7 @@ class MeterSerializer(serializers.ModelSerializer):
         Validate meter number
         """
         organization_is_sandbox = self.context['organization'].is_sandbox
-        if not organization_is_sandbox:
+        if SANDBOX_METER_NUMBER_VALIDATION or not organization_is_sandbox:
             if not validate_meter_no(value):
                 raise serializers.ValidationError("Incorrect meter number.")
         return value
@@ -75,7 +76,7 @@ class MeterSerializer(serializers.ModelSerializer):
         print(f"\n\nAttempting to add meter number {meter_number} to organization {organization.uuid}\n\n")
 
         # Check if meter with the same number already exists for this organization
-        meter_service = get_meter_service(organization)
+        meter_service = get_meter_service(organization, user)
         meter = meter_service.get_meter_by_number(meter_number, organization=organization)
         print(f"\n\nChecked existence of meter number {meter_number} in organization {organization.uuid}, result: {meter}")
         if meter:
@@ -125,7 +126,27 @@ class UtilityCostSerializer(serializers.ModelSerializer):
 
 
 class UtilityVendsSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = UtilityVend
-        fields = ['meter', 'created', 'amount', 'vend_reference']
+        fields = [
+            "uuid",
+            "meter",
+            "transaction",
+            "amount",
+            "units",
+            "utility_cost",
+            "vend_reference",
+            "token",
+            "token_details",
+            "status",
+            "initiated_by",
+            "organization",
+            "is_sandbox",
+            "token_type",
+            "token_class",
+            "token_sub_class",
+            "meter_type",
+            "meter_number",
+            "created",
+            "last_updated",
+        ]

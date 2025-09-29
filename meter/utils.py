@@ -21,3 +21,34 @@ def validate_meter_no(meter_no):
     if luhn != check_digit:
         return False
     return True
+
+
+def format_token(token: str) -> str:
+    """
+    Formats a token string by adding a dash every 4 characters.
+    e.g: 1234567812340987 -> 1234-5678-1234-0987
+    """
+    if not isinstance(token, str):
+        return token
+    return '-'.join([token[i:i+4] for i in range(0, len(token), 4)])
+
+
+def get_token_class_and_subclass(token_type: str):
+    """
+    Returns the token class and subclass based on the token type.
+    """
+    token_map = {
+        'mgtk': ('MGTK', 'MGTK (1)'),
+        'kct': ('KCT', 'KCT (2)'),
+        'fr': ('FR', 'FR (3)'),
+        'cwe': ('CWE', 'CWE (4)'),
+        'frt': ('FRT', 'FRT (5)'),
+        'cwt': ('CWT', 'CWT (6)'),
+        'frc': ('FRC', 'FRC (7)'),
+        'cwc': ('CWC', 'CWC (8)'),
+        'kvt': ('KVT', 'KVT (9)'),
+        'kvc': ('KVC', 'KVC (10)'),
+        'kvtc': ('KVTC', 'KVTC (11)'),
+        'kvtcr': ('KVTCR', 'KVTCR (12)'),
+    }
+    return token_map.get(token_type, (None, None))

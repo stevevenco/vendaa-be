@@ -11,7 +11,7 @@ class WalletCreateSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         org = Organization.objects.get(uuid=validated_data['organization_id'])
-        wallet_service = get_wallet_service(org)
+        wallet_service = get_wallet_service(org, self.context['request'].user)
         try:
             return wallet_service.create_wallet(org)
         except Exception as e:

@@ -3,7 +3,13 @@ from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
 from django.shortcuts import get_object_or_404
+from django.db import transaction as db_transaction
+
+from authentication.api_key.authentication import APIKeyAuthentication
+from utils.permissions import HasOrgPermission
 from .models import APIKey
 from authentication.models import Organization
 from .permissions import IsOrganizationOwnerOrAdminOrAPIKey, AuthReadPermission
@@ -15,15 +21,22 @@ from .services import get_api_key_service, ApiKeyService, ProductionApiKeyServic
 
 class APIKeyListView(generics.ListAPIView):
     """List API keys for an organization"""
-    
+    authentication_classes = [
+        APIKeyAuthentication,
+        JWTAuthentication
+    ]
     serializer_class = APIKeySerializer
-    permission_classes = [IsAuthenticated, IsOrganizationOwnerOrAdminOrAPIKey]
+    permission_classes = [
+        IsAuthenticated,
+        HasOrgPermission('developer', 'read'),
+        # IsOrganizationOwnerOrAdminOrAPIKey
+    ]
     
     def get_queryset(self):
         org_uuid = self.kwargs['org_uuid']
         organization=get_object_or_404(Organization, uuid=org_uuid)
         print(f"Fetching API keys for organization UUID: {org_uuid}")
-        api_key_service = get_api_key_service(organization)
+        api_key_service = get_api_key_service(organization, self.request.user)
         api_keys = api_key_service.get_api_keys(organization)
         # api_keys = APIKey.objects.filter(organization__uuid=org_uuid)
         print(f"\n\nFound {api_keys.count()} API keys")
@@ -89,7 +102,7 @@ class APIKeyDetailView(generics.RetrieveUpdateDestroyAPIView):
     
     def get_queryset(self):
         organization = get_object_or_404(Organization, uuid=self.kwargs['org_uuid'])
-        api_key_service = get_api_key_service(organization)
+        api_key_service = get_api_key_service(organization, self.request.user)
         return api_key_service.get_api_keys(organization)
         # return APIKey.objects.filter(organization__uuid=self.kwargs['org_uuid'])
     
@@ -111,41 +124,44 @@ def regenerate_api_key(request, org_uuid, key_uuid):
     """Regenerate an existing API key"""
     
     organization = get_object_or_404(Organization, uuid=org_uuid)
-    api_key_service = get_api_key_service(organization)
+    api_key_service = get_api_key_service(organization, request.user)
     api_key = api_key_service.get_api_key_by_uuid(key_uuid, organization)
+    print(f"\n\nRegenerating API key {key_uuid} for organization {org_uuid}\n\n")
     # api_key = get_object_or_404(APIKey, uuid=key_uuid, organization=organization)
 
-    try:
-        # Delete old key
-        key_type = api_key.key_type
-        name = api_key.name
-        api_key.delete()
-        
-        # Create new key
-        created_by = None
-        if not hasattr(request.user, 'is_api_key_user'):
-            created_by = request.user
+    with db_transaction.atomic():
+        try:
+            # Delete old key
+            key_type = api_key.key_type
+            is_sandbox = api_key.is_sandbox
+            name = api_key.name
+            api_key.delete()
             
-        new_api_key, full_key = APIKey.create_api_key(
-            organization=organization,
-            key_type=key_type,
-            name=name,
-            created_by=created_by,
-            is_sandbox=organization.is_sandbox
-        )
-        
-        # Return the new API key with full key
-        response_serializer = APIKeyResponseSerializer(new_api_key)
-        response_data = response_serializer.data
-        response_data['full_key'] = full_key
-        
-        return Response(response_data, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        return Response(
-            {'error': str(e)}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
+            # Create new key
+            created_by = None
+            if not hasattr(request.user, 'is_api_key_user'):
+                created_by = request.user
+                
+            new_api_key, full_key = APIKey.create_api_key(
+                organization=organization,
+                key_type=key_type,
+                name=name,
+                created_by=created_by,
+                is_sandbox=is_sandbox
+            )
+            
+            # Return the new API key with full key
+            response_serializer = APIKeyResponseSerializer(new_api_key)
+            response_data = response_serializer.data
+            response_data['full_key'] = full_key
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 @api_view(['GET'])

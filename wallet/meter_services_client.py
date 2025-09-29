@@ -63,6 +63,16 @@ class MeterServicesClient:
         response = requests.get(url, headers=self.headers, params=params)
         return response.status_code, response.json()
 
+    def get_single_transaction(self, transaction_id):
+        # https://meterservices.01101960.xyz/api/method/meter_services.v1.wallet.fetch_transaction?transaction_id=12345678&is_live=0
+        url = f"{self.base_url}/api/method/meter_services.v1.wallet.fetch_transaction"
+        params = {
+            "transaction_id": str(transaction_id),
+            "is_live": self.is_live,
+        }
+        response = requests.get(url, headers=self.headers, params=params)
+        return response.status_code, response.json()
+
     def charge_wallet(self, debit_party, credit_party, amount, debit_party_reference):
         url = f"{self.base_url}/api/method/meter_services.v1.wallet.charge_wallet"
         data = {

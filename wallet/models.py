@@ -30,6 +30,7 @@ class Transaction(TrackObjectStateMixin):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('successful', 'Successful'),
+        ('success', 'Success'),
         ('failed', 'Failed'),
         ('refunded', 'Refunded'),
     ]

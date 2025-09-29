@@ -61,3 +61,6 @@ up-d:
 
 test-smtp:
 	@docker compose run --rm app python -c "import socket; socket.create_connection(('smtp.gmail.com', 465), timeout=5); print('Connection OK')"
+
+enter-db-console:
+	@docker exec -it vendaa-backend-postgres-1 psql -U postgres -d postgres
