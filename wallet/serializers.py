@@ -1,0 +1,69 @@
+from rest_framework import serializers
+import requests
+from django.conf import settings
+
+from authentication.models import Organization
+from .models import Wallet
+from .wallet_service import get_wallet_service
+
+class WalletCreateSerializer(serializers.Serializer):
+    organization_id = serializers.UUIDField()
+
+    def create(self, validated_data):
+        org = Organization.objects.get(uuid=validated_data['organization_id'])
+        wallet_service = get_wallet_service(org)
+        try:
+            return wallet_service.create_wallet(org)
+        except Exception as e:
+            raise serializers.ValidationError(str(e))
+
+class WalletSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Wallet
+        fields = ['wallet_id', 'created_by', 'reference', 'currency', 'available_balance']
+        read_only_fields = ['wallet_id', 'created_by', 'currency', 'available_balance']
+
+class WalletBalanceSerializer(serializers.Serializer):
+    available_balance = serializers.CharField()
+    ledger_balance = serializers.CharField()
+    wallet_id = serializers.CharField()
+    currency = serializers.CharField()
+
+
+class PaymentOptionSerializer(serializers.Serializer):
+    payment_gateway = serializers.CharField()
+    slug = serializers.CharField()
+    logo = serializers.URLField()
+    amount = serializers.DecimalField(max_digits=20, decimal_places=2)
+    fee = serializers.DecimalField(max_digits=20, decimal_places=2)
+    provider = serializers.CharField(required=False)
+    payment_url = serializers.URLField(required=False)
+    bank_name = serializers.CharField(required=False)
+    icon = serializers.URLField(required=False)
+    account_number = serializers.CharField(required=False)
+    account_name = serializers.CharField(required=False)
+    account_reference = serializers.CharField(required=False)
+
+
+class TransactionSerializer(serializers.Serializer):
+    transaction_id = serializers.CharField()
+    title = serializers.CharField()
+    amount = serializers.CharField()
+    status = serializers.CharField()
+    event = serializers.CharField()
+    created_at = serializers.DateTimeField()
+
+
+class SandboxTransactionSerializer(serializers.Serializer):
+    transaction_id = serializers.CharField()
+    amount = serializers.DecimalField(max_digits=20, decimal_places=2)
+    status = serializers.CharField()
+    event = serializers.CharField()
+    created_at = serializers.DateTimeField(source="created")
+    title = serializers.SerializerMethodField()
+
+    def get_title(self, obj):
+        if hasattr(obj, "title") and obj.title:
+            return obj.title
+        return f"{obj.transaction_id}"
+

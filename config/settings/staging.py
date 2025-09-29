@@ -1,6 +1,7 @@
 import os
 
 from dotenv import load_dotenv
+import dj_database_url
 
 from .base import *  # noqa 403
 
@@ -12,6 +13,8 @@ load_dotenv()
 DEBUG = True  # change to False in production
 SECURE_SSL_REDIRECT = False  # change to True in production
 # -----------
+
+FRONTEND_URL = "https://vendaa.onrender.com"
 
 CORS_ALLOW_ALL_ORIGINS = False
 
@@ -37,7 +40,8 @@ REST_FRAMEWORK = {
 
 CORS_ALLOWED_ORIGINS = [
     "https://vendaa.onrender.com",
-    "http://localhost:5173"
+    "http://localhost:5173",
+    "http://localhost:8080"
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -49,7 +53,8 @@ CORS_ALLOW_CREDENTIALS = True
 ALLOWED_HOSTS = [
     "vendaa-be.onrender.com",
     "http://localhost:8000",
-    "localhost:8000"
+    "localhost:8000",
+    "localhost"
 ]
 
 
@@ -64,3 +69,15 @@ DATABASES = {
         "OPTIONS": {"sslmode": "require"},
     }
 }
+
+# DATABASES = {
+#     "default": dj_database_url.config(
+#         default=(
+#             f"postgresql://{os.getenv('DATABASE_USER')}:{os.getenv('DATABASE_PASSWORD')}"
+#             f"@{os.getenv('DATABASE_HOST')}:{os.getenv('DATABASE_PORT', '6543')}/"
+#             f"{os.getenv('DATABASE_NAME')}"
+#         ),
+#         conn_max_age=600,
+#         ssl_require=True,
+#     )
+# }

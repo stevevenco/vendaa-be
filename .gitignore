@@ -138,3 +138,4 @@ images/
 config/media/
 .s3/
 *.github/workflows/bu.yml
+test_db_conn.py

@@ -1,3 +1,7 @@
+import uuid
+import secrets
+import hashlib
+from datetime import timedelta
 from django.contrib.auth.models import (
     AbstractBaseUser,
     BaseUserManager,
@@ -5,6 +9,7 @@ from django.contrib.auth.models import (
 )
 from django.db import models
 from django.utils import timezone
+from countries.models import Country
 
 # import argon2
 from utils.models import TrackObjectStateMixin
@@ -35,16 +40,30 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
+    DISPLAY_STATE = [
+        ("live", "Live"),
+        ("test", "Test"),
+    ]
+
     first_name = models.CharField(
         max_length=50, blank=True, null=True, default=None
     )
     last_name = models.CharField(
         max_length=50, blank=True, null=True, default=None
     )
+    phone_code = models.CharField(
+        max_length=10, blank=True, null=True, default=None
+    )
+    phone_number = models.CharField(
+        max_length=20, blank=True, null=True, default=None
+    )
     email = models.EmailField(unique=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
+    display_state = models.CharField(
+        max_length=10, choices=DISPLAY_STATE, default="test"
+    )
 
     objects = UserManager()
 
@@ -58,14 +77,21 @@ class User(AbstractBaseUser, PermissionsMixin, TrackObjectStateMixin):
 
 class Organization(TrackObjectStateMixin):
     name = models.CharField(max_length=255)
+    is_sandbox = models.BooleanField(default=True)
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         related_name="owned_organizations",
     )
+    country = models.ForeignKey(
+        Country, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    currency = models.CharField(max_length=10, blank=True)
+    is_verified = models.BooleanField(default=False)
+
     def __str__(self):
-        return self.name
+        return f"{self.name} - {'Sandbox' if self.is_sandbox else 'Production'} - {self.created_by.email if self.created_by else 'No Owner'}"
 
 
 class Membership(TrackObjectStateMixin):
@@ -73,6 +99,11 @@ class Membership(TrackObjectStateMixin):
         ("owner", "Owner"),
         ("admin", "Admin"),
         ("member", "Member"),
+        ("auditor", "Auditor"),
+        ("finance_manager", "Finance Manager"),
+        ("operations_manager", "Operations Manager"),
+        ("support_agent", "Support Agent"),
+        ("developer", "Developer"),
     ]
 
     user = models.ForeignKey(
@@ -82,6 +113,12 @@ class Membership(TrackObjectStateMixin):
         Organization, on_delete=models.CASCADE, related_name="memberships"
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="invited_memberships"
+    )
 
     @property
     def joined_at(self):
@@ -99,6 +136,8 @@ class OTP(TrackObjectStateMixin):
         ("signup", "Signup Verification"),
         ("password_reset", "Password Reset"),
         ("email_change", "Email Change"),
+        ("account_verification", "Account Verification"),
+        ("two_factor_auth", "Two Factor Authentication"),
     ]
 
     user = models.ForeignKey(
@@ -115,3 +154,40 @@ class OTP(TrackObjectStateMixin):
     def mark_used(self):
         self.used = True
         self.save()
+
+
+class Invitation(TrackObjectStateMixin):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("accepted", "Accepted"),
+        ("expired", "Expired"),
+        ("declined", "Declined"),
+        ("cancelled", "Cancelled"),
+    ]
+
+    ROLE_CHOICES = Membership.ROLE_CHOICES
+
+    email = models.EmailField()
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="invitations"
+    )
+    sent_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True,
+        related_name="sent_invitations"
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pending"
+    )
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(days=7)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Invitation for {self.email} to {self.organization.name}"

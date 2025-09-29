@@ -1,12 +1,14 @@
 from django.contrib.auth import authenticate
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import exceptions, serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from authentication.exceptions import InvalidOTP
 
-from .models import Membership, Organization, User
-from .utils import verify_otp
+from .models import Invitation, Membership, Organization, User, OTP
+from countries.models import Country
+from .utils import verify_otp, hash_otp
 
 # from utils.serializers import BaseSerializer
 
@@ -18,19 +20,89 @@ class UserModelSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["email", "password", "first_name", "last_name", "organizations"]
+        fields = [
+            "email",
+            "password",
+            "first_name",
+            "last_name",
+            "phone_code",
+            "phone_number",
+            "organizations",
+            "is_active",
+            "is_staff",
+            "is_verified",
+            "display_state",
+        ]
+        read_only_fields = ["is_active", "is_staff", "is_verified", "organizations"]
         extra_kwargs = {"password": {"write_only": True, "min_length": 8}}
-    
+
+    def validate(self, attrs):
+        display_state = attrs.get("display_state")
+
+        if display_state in dict(User.DISPLAY_STATE):
+            organization_uuid = self.context.get("organization")
+
+            # Check if organization UUID is provided
+            if not organization_uuid:
+                raise serializers.ValidationError(
+                    "Organization UUID is required when setting display_state."
+                )
+
+            try:
+                organization = Organization.objects.get(uuid=organization_uuid)
+            except Organization.DoesNotExist:
+                raise serializers.ValidationError(
+                    "Organization not found."
+                )
+
+            # Check if user is a member of the organization
+            user_email = attrs.get("email") or self.instance.email
+            if not Membership.objects.filter(
+                organization=organization, user__email=user_email
+            ).exists():
+                raise serializers.ValidationError(
+                    "User is not a member of the specified organization."
+                )
+
+            # Update organization sandbox status based on display_state
+            if display_state == "live":
+                if not organization.is_verified:
+                    raise serializers.ValidationError(
+                        "Cannot set display_state to 'live' without a verified organization."
+                    )
+                organization.is_sandbox = False
+                organization.save()
+            elif display_state == "test":
+                organization.is_sandbox = True
+                organization.save()
+
+        return attrs
+
     def get_organizations(self, obj):
         memberships = obj.memberships.all()
-        return [
-            {
+        result = []
+
+        for membership in memberships:
+            body = {
                 "uuid": membership.organization.uuid,
                 "name": membership.organization.name,
+                "is_sandbox": membership.organization.is_sandbox,
+                "is_verified": membership.organization.is_verified,
                 "role": membership.role,
             }
-            for membership in memberships
-        ]
+
+            org_country = membership.organization.country
+            if org_country:
+                body["country"] = org_country.name
+                body["currency"] = org_country.currency_symbol
+            else:
+                body["country"] = "Unspecified"
+                body["currency"] = "Unspecified"
+
+            result.append(body)
+            print(f"\n Result: {result}\n")
+
+        return result
 
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
@@ -44,21 +116,153 @@ class UserModelSerializer(serializers.ModelSerializer):
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
+    country = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        # allow_null=True,
+        # required=False,
+    )
     class Meta:
         model = Organization
-        fields = ["uuid", "name", "created_by", "created"]
-        read_only_fields = ["uuid", "created_by", "created"]
+        fields = ["uuid", "name", "created_by", "created", "country", "currency", "is_sandbox", "is_verified"]
+        read_only_fields = ["uuid", "created_by", "created", "currency", "is_verified", "is_sandbox"]
 
     @transaction.atomic
     def create(self, validated_data):
         user = self.context["request"].user
+        country = validated_data.get("country")
+
+        # Automatically set the currency based on the selected country
+        if country:
+            validated_data["currency"] = country.currency
+
         organization = Organization.objects.create(
             created_by=user, **validated_data
         )
         Membership.objects.create(
-            user=user, organization=organization, role="owner"
+            user=user,
+            organization=organization,
+            role="owner",
+            invited_by=user  # Self-invited when creating organization
         )
+
         return organization
+
+
+class OrganizationUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ["name"]
+
+
+class InvitationCreateSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField()
+    role = serializers.ChoiceField(choices=Membership.ROLE_CHOICES, default="member")
+
+    class Meta:
+        model = Invitation
+        fields = ["email", "role"]
+
+    def validate_email(self, value):
+        organization = self.context.get("organization")
+        if organization and Membership.objects.filter(
+            organization=organization, user__email=value
+        ).exists():
+            raise serializers.ValidationError(
+                "A user with this email is already a member of this organization."
+            )
+
+        # if (
+        #     organization
+        #     and Invitation.objects.filter(
+        #         organization=organization, email=value, status="pending"
+        #     ).exists()
+        # ):
+        #     raise serializers.ValidationError(
+        #         "An invitation has already been sent to this email address for this organization."
+        #     )
+
+        return value
+
+
+class InvitationDetailSerializer(serializers.ModelSerializer):
+    organization_name = serializers.CharField(
+        source="organization.name", read_only=True
+    )
+    organization_uuid = serializers.UUIDField(
+        source="organization.uuid", read_only=True
+    )
+    role = serializers.CharField(source="get_role_display", read_only=True)
+    sent_by_email = serializers.EmailField(source="sent_by.email", read_only=True)
+    sent_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Invitation
+        fields = [
+            "token",
+            "email",
+            "role",
+            "organization_name",
+            "organization_uuid",
+            "sent_by_email",
+            "sent_by_name",
+            "status",
+            "created",
+            "expires_at"
+        ]
+
+    def get_sent_by_name(self, obj):
+        if obj.sent_by:
+            return f"{obj.sent_by.first_name} {obj.sent_by.last_name}"
+        return None
+
+
+class AcceptInviteSerializer(serializers.Serializer):
+    token = serializers.UUIDField()
+
+    def validate(self, attrs):
+        token = attrs.get("token")
+        try:
+            invitation = Invitation.objects.get(token=token, status="pending")
+        except Invitation.DoesNotExist:
+            raise serializers.ValidationError("Invalid or expired invitation token.")
+
+        if invitation.expires_at < timezone.now():
+            invitation.status = "expired"
+            invitation.save()
+            raise serializers.ValidationError("Invitation has expired.")
+
+        user = self.context["request"].user
+        if invitation.email != user.email:
+            raise serializers.ValidationError("This invitation is not for you.")
+
+        attrs["invitation"] = invitation
+        return attrs
+
+
+class UserBasicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["email", "first_name", "last_name", "phone_number"]
+
+
+class MemberListSerializer(serializers.ModelSerializer):
+    user = UserBasicSerializer(read_only=True)
+
+    class Meta:
+        model = Membership
+        fields = ["uuid", "user", "role", "joined_at", "invited_by"]
+        read_only_fields = ["uuid", "joined_at"]
+
+
+class MemberRoleUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Membership
+        fields = ["role"]
+
+    def validate_role(self, value):
+        if value not in dict(Membership.ROLE_CHOICES):
+            raise serializers.ValidationError("Invalid role choice.")
+        return value
 
 
 class MemberSerializer(serializers.ModelSerializer):
@@ -102,53 +306,40 @@ class DashboardSerializer(serializers.Serializer):
         return attrs
 
 
-class OldVerifyOTPSerializer(serializers.Serializer):
-    email_otp = serializers.CharField(
-        max_length=6, min_length=6, required=True
-    )
+class RequestOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    purpose = serializers.ChoiceField(choices=OTP.PURPOSE_CHOICES)
 
-    class Meta:
-        model = User
-        fields = ["email_otp"]
-
-    def validate_email_otp(self, value):
-        user = self.context["request"].user
-        e_otp = user.email_otp
-        print("email_otp: ", value)
-        print("e_otp: ", e_otp)
-
-        if not verify_otp(value, e_otp):
-            raise InvalidOTP
-
-        return e_otp
-
-    @transaction.atomic
-    def save(self):
-        user = self.context["request"].user
-        user.is_verified = True
-        user.email_otp = None
-        user.save()
-        # self.validated_data["otp"].delete()
-        return
+    def validate_purpose(self, value):
+        if value not in dict(OTP.PURPOSE_CHOICES):
+            raise serializers.ValidationError("Invalid purpose choice.")
+        return value
 
 
 class OTPVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
     otp_code = serializers.CharField(min_length=6, max_length=6)
-    purpose = serializers.ChoiceField(choices=["signup", "password_reset"])
+    purpose = serializers.ChoiceField(choices=OTP.PURPOSE_CHOICES)
 
     @transaction.atomic
     def validate(self, attrs):
-        user = self.context["request"].user
+        email = attrs.get("email")
         code = attrs.get("otp_code")
         purpose = attrs.get("purpose")
 
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User not found")
+
         from authentication.utils import verify_otp
 
-        new_password = self.context["request"].data.get("new_password")
+        new_password = self.context.get("new_password")
 
         if not verify_otp(user, code, purpose, new_password=new_password):
             raise serializers.ValidationError("Invalid OTP")
 
+        attrs["user"] = user
         return attrs
 
 
@@ -178,3 +369,46 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise exceptions.AuthenticationFailed(
                 "No active account found with the given credentials"
             )
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, min_length=8)
+
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Old password is not correct")
+        return value
+
+    def save(self, **kwargs):
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
+        user.save()
+        return user
+
+
+class ResetForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp_code = serializers.CharField(min_length=6, max_length=6)
+    new_password = serializers.CharField(min_length=8)
+
+    def validate(self, attrs):
+        """Validate the email and OTP code."""
+        user = User.objects.filter(email=attrs.get("email")).first()
+        if not user:
+            raise serializers.ValidationError("User with this email does not exist.")
+
+        hashed_code = hash_otp(attrs.get("otp_code"))
+        is_user_otp = OTP.objects.filter(user=user, code_hash=hashed_code).first()
+        if not is_user_otp:
+            raise serializers.ValidationError("Invalid OTP code.")
+
+        return attrs
+
+    def save(self, **kwargs):
+        user = User.objects.filter(email=self.validated_data["email"]).first()
+        if user:
+            user.set_password(self.validated_data["new_password"])
+            user.save()
+        return user

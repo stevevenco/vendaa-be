@@ -1,0 +1,9 @@
+from django.contrib import admin
+
+# Register your models here.
+from config.admin import admin_site
+from meter.models import Meter, UtilityCost, UtilityVend
+
+admin_site.register(Meter)
+admin_site.register(UtilityCost)
+admin_site.register(UtilityVend)
