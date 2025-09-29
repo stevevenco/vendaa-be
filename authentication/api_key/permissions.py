@@ -37,7 +37,7 @@ class APIKeyPermission(permissions.BasePermission):
                 return False
 
             # Ensure sandbox keys can only access sandbox organizations
-            if api_key.sandbox != organization.is_sandbox:
+            if api_key.is_sandbox != organization.is_sandbox:
                 return False
 
         return True

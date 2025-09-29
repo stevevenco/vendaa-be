@@ -187,10 +187,12 @@ class TransactionListView(ListAPIView):
         # Get organization + wallet service
         # organization = get_object_or_404(Organization, uuid=organization_id)
         currency = organization.currency
+        month = self.request.query_params.get('month')
+        print(f"\n===Filter month: {month}===\n")
         # wallet_service = get_wallet_service(organization)
 
         # Get transaction history from external service
-        transactions = wallet_service.get_wallet_transaction(wallet, currency)
+        transactions = wallet_service.get_wallet_transaction(wallet, currency, month=month)
 
         # Store organization so we can use it later in serializer_class
         self.organization = organization

@@ -25,6 +25,7 @@ class UserModelSerializer(serializers.ModelSerializer):
             "password",
             "first_name",
             "last_name",
+            "phone_code",
             "phone_number",
             "organizations",
             "is_active",
