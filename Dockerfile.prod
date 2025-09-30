@@ -34,7 +34,7 @@ EXPOSE 8000
 
 # It uses environment variables for flexibility, defaulting to safe values.
 CMD ["pipenv", "run", "gunicorn", \
-    "--workers", "${GUNICORN_WORKERS:-1}", \
-    "--timeout", "${GUNICORN_TIMEOUT:-120}", \
-    "--bind", "0.0.0.0:${PORT:-8000}", \
+    "--workers", "1", \
+    "--timeout", "120", \
+    "--bind", "0.0.0.0:8000", \
     "config.wsgi:application"]
