@@ -45,7 +45,7 @@ def verify_otp(user, code: str, purpose: str, **kwargs) -> bool:
         if otp_obj.code_hash == hashed_code:
             otp_obj.mark_used()
 
-            if otp_obj.purpose == "signup" and not user.is_verified:
+            if otp_obj.purpose in ["signup", "account_verification"] and not user.is_verified:
                 user.is_verified = True
                 user.save()
                 return True
