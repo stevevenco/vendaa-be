@@ -9,6 +9,7 @@ import authentication.urls as auth_url
 import media.urls as media_url
 import meter.urls as meter_url
 import wallet.urls as wallet_url
+import countries.urls as countries_url
 from config.admin import admin_site
 
 schema_view = get_schema_view(
@@ -19,6 +20,7 @@ schema_view = get_schema_view(
     ),
     public=True,
     permission_classes=[permissions.IsAdminUser],
+    # permission_classes=(permissions.AllowAny,)
 )
 
 urlpatterns = [
@@ -31,6 +33,7 @@ urlpatterns = [
                 path("media/", include(media_url)),
                 path("", include(wallet_url)),
                 path("", include(meter_url)),
+                path("", include(countries_url)),  # Added countries URLs
             ]
         ),
     ),

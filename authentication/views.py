@@ -410,7 +410,7 @@ class MemberDetailView(RetrieveUpdateDestroyAPIView):
         organization = instance.organization
         if new_role:
             # For role updates - check if this would remove the last owner/admin
-            if instance.role in ['owner', 'admin'] and new_role == 'member':
+            if instance.role in ['owner', 'admin'] and new_role not in ['owner', 'admin']:
                 remaining_admins = Membership.objects.filter(
                     organization=organization,
                     role__in=['owner', 'admin']

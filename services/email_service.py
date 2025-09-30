@@ -121,7 +121,7 @@ class AWSSESEmailClient(BaseEmailClient):
             "sender_email": invitation.sent_by.email if invitation.sent_by else "no-reply@vedaa.co",
         }
         html_body = render_to_string("invitation_email.html", context)
-        text_body = "Please view this email in HTML format."
+        text_body = "You have been invited to join an organization."
         to = invitation.email
         response = self.ses.send_email(
             Source=settings.SES_FROM_EMAIL,
@@ -153,7 +153,7 @@ class AWSSESEmailClient(BaseEmailClient):
             template_name = "account_verification.html"
 
         html_body = render_to_string(template_name, context)
-        text_body = "Please view this email in HTML format."
+        text_body = "You requested an OTP."
         to = receiver
         response = self.ses.send_email(
             Source=settings.SES_FROM_EMAIL,
