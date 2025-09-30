@@ -71,6 +71,9 @@ def send_otp(receiver, otp, purpose=OTP.PURPOSE_CHOICES[0][0], **kwargs):
     elif purpose == OTP.PURPOSE_CHOICES[0][0]:  # signup
         subject = "Complete your registration"
         template_name = "signup_template.html"
+    elif purpose == OTP.PURPOSE_CHOICES[3][0]:  # account_verification
+        subject = "Account Verification"
+        template_name = "account_verification.html"
 
     html_message = render_to_string(template_name, context)
     plain_message = strip_tags(html_message)
