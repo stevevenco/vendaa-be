@@ -71,9 +71,13 @@ class WalletBalanceView(APIView):
             # wallet_service = get_wallet_service(organization)
             external_balance_str = wallet_service.get_wallet_balance(wallet)
             currency_symbol = external_balance_str.split()[0]
+            print(f"\n\n Currency symbol: {currency_symbol} \n\n")
 
             # Clean up the balance string to decimal for comparison
             cleaned_balance = external_balance_str.replace(currency_symbol, '').replace(',', '').strip()
+            print(f"\n\n Cleaned balance: {cleaned_balance} \n\n")
+            if not cleaned_balance:
+                raise ValueError("Improperly formed wallet balance")
             balance_decimal = Decimal(cleaned_balance)
 
             # Update wallet if external balance is different

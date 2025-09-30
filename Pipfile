@@ -22,12 +22,12 @@ pyotp = "*"
 mailtrap = "*"
 django-ninja = "*"
 django-environ = "*"
-boto3 = "*"
 drf-yasg = "*"
 django-filter = "*"
 imagekitio = "*"
 cloudinary = "*"
 whitenoise = "*"
+boto3 = "*"
 
 [dev-packages]
 ruff = "*"

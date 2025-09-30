@@ -218,6 +218,7 @@ class ProductionWalletService(WalletService):
 
     def get_wallet_balance(self, wallet: Wallet):
         status, response_data = self.client.get_balance(wallet.wallet_id)
+        print(f"\n\nWallet balance response: {response_data}\n\n")
         if status == 200 and response_data.get("status") == "success":
             balance_data = response_data["data"]
             return balance_data["avail_balance_cur"]
@@ -400,6 +401,7 @@ class SandboxWalletService(WalletService):
         else:
             currency_symbol = country.currency_symbol
 
+        print(f"\n\nSandbox wallet balance: {wallet.available_balance} {currency_symbol}\n\n")
         return f"{currency_symbol} {wallet.available_balance}"
 
     def get_wallet_transaction(self, wallet: Wallet, org_currency: str, month=None):
