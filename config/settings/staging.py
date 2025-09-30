@@ -65,8 +65,9 @@ DATABASES = {
         "USER": os.getenv("DATABASE_USER"),
         "PASSWORD": os.getenv("DATABASE_PASSWORD"),
         "HOST": os.getenv("DATABASE_HOST"),
-        "PORT": os.getenv("DATABASE_PORT", "5432"),  # Default PostgreSQL port
+        "PORT": os.getenv("DATABASE_PORT", "5432"),
         "OPTIONS": {"sslmode": "require"},
+        "CONN_MAX_AGE": 600,
     }
 }
 
