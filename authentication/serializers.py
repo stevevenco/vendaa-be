@@ -122,7 +122,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
     country = serializers.PrimaryKeyRelatedField(
         queryset=Country.objects.all(),
         # allow_null=True,
-        # required=False,
+        required=False,
     )
     class Meta:
         model = Organization
