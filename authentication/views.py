@@ -38,6 +38,7 @@ from .serializers import (
     UserModelSerializer,
 )
 from .utils import create_otp, send_invitation_email, send_otp
+from services.email_service import get_email_client
 
 # from utils.permissions import CanManageOrganization, IsOrganizationOwnerOrAdmin
 from utils.permissions import HasOrgPermission, IsOrganizationOwnerOrAdmin
@@ -55,7 +56,8 @@ class UserCreateView(CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         email_otp = create_otp(user, purpose="signup")
-        send_otp(user.email, email_otp, purpose="signup", user_first_name=user.first_name)
+        email_client = get_email_client()
+        email_client.send_otp(user.email, email_otp, purpose="signup", user_first_name=user.first_name)
         headers = self.get_success_headers(serializer.data)
         return Response(
             serializer.data, status=status.HTTP_201_CREATED, headers=headers
@@ -373,7 +375,9 @@ class MemberListCreateView(ListCreateAPIView):
             organization=organization,
             sent_by=request.user
         )
-        send_invitation_email(invitation)
+
+        email_client = get_email_client()
+        email_client.send_invitation_email(invitation)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
@@ -543,7 +547,8 @@ class RequestOTPView(GenericAPIView):
         try:
             user = User.objects.get(email=email)
             otp_code = create_otp(user, purpose=purpose)
-            send_otp(user.email, otp_code, purpose=purpose, user_first_name=user.first_name)
+            email_client = get_email_client()
+            email_client.send_otp(user.email, otp_code, purpose=purpose, user_first_name=user.first_name)
             return Response(
                 {"detail": "OTP sent to your email."},
                 status=status.HTTP_200_OK,

@@ -21,7 +21,7 @@ from corsheaders.defaults import default_headers
 
 env = environ.Env()
 
-EnvironmentType = Literal["dev", "staging", "prod"]
+EnvironmentType = Literal["dev", "staging", "production"]
 CreditWalletIDs = Literal["_VNCA08836F", "wallet_002"]
 
 
@@ -33,6 +33,10 @@ class GeneralSettings(BaseSettings):
     METER_SERVICES_URL: str
     METER_SERVICES_TOKEN: str
     CREDIT_WALLET_ID: CreditWalletIDs
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
+    AWS_DEFAULT_REGION: str
+    SES_FROM_EMAIL: str
 
     @property
     def CREDIT_WALLET_ID(self) -> CreditWalletIDs:
@@ -44,6 +48,11 @@ METER_SERVICES_URL = GENERAL_SETTINGS.METER_SERVICES_URL
 METER_SERVICES_TOKEN = GENERAL_SETTINGS.METER_SERVICES_TOKEN
 IS_LIVE = GENERAL_SETTINGS.IS_LIVE
 CREDIT_WALLET_ID = GENERAL_SETTINGS.CREDIT_WALLET_ID
+AWS_ACCESS_KEY_ID = GENERAL_SETTINGS.AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY = GENERAL_SETTINGS.AWS_SECRET_ACCESS_KEY
+AWS_DEFAULT_REGION = GENERAL_SETTINGS.AWS_DEFAULT_REGION
+SES_FROM_EMAIL = GENERAL_SETTINGS.SES_FROM_EMAIL
+ENVIRONMENT = GENERAL_SETTINGS.ENVIRONMENT
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
